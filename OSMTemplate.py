@@ -14,7 +14,7 @@
 #
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 # IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# FITNESS FOR A PARTICULAR PURPOSE AND NON INFRINGEMENT. IN NO EVENT SHALL THE
 # AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
@@ -43,32 +43,26 @@ class OSMNewModel(OSMBaseModel):
 # See "OSMBaseModel.py" and "OSMSequential.py"          
         
     def name(self):
-        return "New Model (unimplemented)" # Model name string.
+        return "New Model (unimplemented)"  # Model name string.
 
-        
     def model_file_extension(self):
-        return "new" # File extension string.
+        return "new"  # File extension string.
 
-    
     def define_model(self):
-        return None # Should return a model.
+        return None  # Should return a model.
 
-    
-    def train_model(self, model, train): pass 
+    def train_model(self, model, train): pass
 
-    
-    def read_model(self, fileName):
-         f = open(fileName, "r")
-         self.log.info("Read OSMNewModel file: %s, content: %s", fileName, f.readline())
-         return None # should return a model
+    def read_model(self, file_name):
+        f = open(file_name, "r")
+        self.log.info("Read OSMNewModel file: %s, content: %s", file_name, f.readline())
+        return None  # should return a model
 
-          
-    def write_model(self, model, fileName):
-         f = open(fileName, "w")
-         f.write("OSMNewModel not implemented yet\n")
+    def write_model(self, model, file_name):
+        f = open(file_name, "w")
+        f.write("OSMNewModel not implemented yet\n")
 
-
-    def model_prediction(self, model, data):        
-        return { "prediction" : data["pEC50"], "actual" : data["pEC50"] }
+    def model_prediction(self, model, data):
+        return {"prediction": data["pEC50"], "actual": data["pEC50"] }
         
 

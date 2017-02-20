@@ -23,10 +23,7 @@
 #
 #
 import math
-import operator
 import numpy
-import argparse
-import logging
 
 # ============================================================================
 # This is a virtual base classification model that is inherited by
@@ -34,7 +31,8 @@ import logging
 # See example code in "OSMNewModel.py" and "OSMSequential.py"
 # ============================================================================
 
-class OSMBaseModel(object): #Python 2.7 new style class. Obsolete in Python 3.
+
+class OSMBaseModel(object):  # Python 2.7 new style class. Obsolete in Python 3.
 
     def __init__(self, train, test, args, log):
 
@@ -73,44 +71,39 @@ class OSMBaseModel(object): #Python 2.7 new style class. Obsolete in Python 3.
 #        
 # ============================================================================        
 
-
-    def save_model_file(self, model, saveFile):
-        if saveFile != "nosave":
-            saveFile = saveFile + "." + self.model_file_extension()
-            self.log.info("Saving Trained %s Model in File: %s", self.name(), saveFile)
-            self.write_model(model, saveFile)
-
+    def save_model_file(self, model, save_file):
+        if save_file != "nosave":
+            save_file = save_file + "." + self.model_file_extension()
+            self.log.info("Saving Trained %s Model in File: %s", self.name(), save_file)
+            self.write_model(model, save_file)
 
     def create_model(self): 
         if self.args.loadFilename != "noload" or self.args.retrainFilename != "noretrain":
             
             if self.args.loadFilename != "noload":
-                loadFile = self.args.loadFilename + "." + self.model_file_extension()
+                load_file = self.args.loadFilename + "." + self.model_file_extension()
             else:
-                loadFile = self.args.retrainFilename + "." + self.model_file_extension()
+                load_file = self.args.retrainFilename + "." + self.model_file_extension()
                 
-            self.log.info("Loading Pre-Trained %s Model File: %s", self.name(), loadFile)
-            model = self.read_model(loadFile)
+            self.log.info("Loading Pre-Trained %s Model File: %s", self.name(), load_file)
+            model = self.read_model(load_file)
         else:
             self.log.info("+++++++ Creating %s Model +++++++", self.name())
             model = self.define_model()
  
         return model           
-            
-                        
+
     def fit_model(self, model, train):
 
         self.log.info("Begin Training %s Model", self.name())
         self.train_model(model, train)
         self.log.info("End Training %s Model", self.name())
 
-
     def training_stats(self, model, train):
     
-        self.trainpredictions = self.model_prediction(model, train)  # Returns a dictionary with two arrays "prediction" and "actual"
-        self.trainstats = self.model_accuracy(self.trainpredictions)  # Returns a dictionary of accuracy tests.              
-        self.log.info("Training Compounds pEC50 Mean Unsigned Error (MUE): %f", self.trainstats["MUE"])
-
+        self.trainPredictions = self.model_prediction(model, train)   # Returns a dict. with "prediction" and "actual"
+        self.trainStats = self.model_accuracy(self.trainPredictions)  # Returns a dictionary of accuracy tests.
+        self.log.info("Training Compounds pEC50 Mean Unsigned Error (MUE): %f", self.trainStats["MUE"])
 
     def model_accuracy(self, predictions):
 
@@ -148,13 +141,14 @@ class OSMBaseModel(object): #Python 2.7 new style class. Obsolete in Python 3.
         
 # Return the model analysis statisitics in a dictionary.        
         
-        return {"MUE": MUE, "RMSE" : RMSE,  "predranks" : predranks,
-                "potentranks" : potentranks, "predactive" : predactive, 
-                "potentactive" : potentactive }
+        return {"MUE": MUE, "RMSE": RMSE,  "predranks": predranks,
+                "potentranks": potentranks, "predactive": predactive,
+                "potentactive": potentactive}
 
 # Display the classification results and write to the log file.
 
     def display_results(self, model, test):
+        """Display all the calculated statistics for each model; run"""
 
         self.testPredictions = self.model_prediction(model, test)
         self.testStats = self.model_accuracy(self.testPredictions)
@@ -165,13 +159,13 @@ class OSMBaseModel(object): #Python 2.7 new style class. Obsolete in Python 3.
         self.log.info("===================================================================================")
 
         for idx in range(len(test["ids"])):
-            self.log.info("%s, %d, %d, %f, %f, %s, %s", test["ids"][idx]                         \
-                                                      , self.testStats["potentranks"][idx]       \
-                                                      , self.testStats["predranks"][idx]         \
-                                                      , self.testPredictions["actual"][idx]      \
-                                                      , self.testPredictions["prediction"][idx]  \
-                                                      , self.testStats["potentactive"][idx]      \
-                                                      , self.testStats["predactive"][idx])         
+            self.log.info("%s, %d, %d, %f, %f, %s, %s", test["ids"][idx],
+                                                        self.testStats["potentranks"][idx],
+                                                        self.testStats["predranks"][idx],
+                                                        self.testPredictions["actual"][idx],
+                                                        self.testPredictions["prediction"][idx],
+                                                        self.testStats["potentactive"][idx],
+                                                        self.testStats["predactive"][idx]),
 
 
 

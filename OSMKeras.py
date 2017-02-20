@@ -44,28 +44,26 @@ class KerasClassifier(OSMBaseModel):
     def __init__(self, train, test, args, log):
         super(KerasClassifier, self).__init__(train, test, args, log)
 
+    def read_model(self, file_name):
+        return load_model(file_name)
 
-    def read_model(self, fileName):
-        return load_model(fileName)
- 
-    def write_model(self, model, fileName):
-        model.save(fileName)
+    def write_model(self, model, file_name):
+        model.save(file_name)
 
-                    
     def model_prediction(self, model, data):
         predictions = model.predict(data["morgan"], verbose=0)
-        predictionsArray = predictions.flatten()
-        return { "prediction" : predictionsArray, "actual" : data["pEC50"] } 
+        predictions_array = predictions.flatten()
+        return {"prediction": predictions_array, "actual": data["pEC50"] }
 
     def train_model(self, model, train):
     
-        if self.args.epoch > 0 and self.args.checkPoint > 0 and self.args.epoch > self.args.checkPoint:      
+        if self.args.checkPoint > 0 and self.args.epoch > self.args.checkPoint:
     
-            remainingEpochs = self.args.epoch
-            while remainingEpochs > 0:
+            remaining_epochs = self.args.epoch
+            while remaining_epochs > 0:
 
-                epochs = self.args.checkPoint if remainingEpochs > self.args.checkPoint else remainingEpochs
-                remainingEpochs = remainingEpochs - epochs
+                epochs = self.args.checkPoint if remaining_epochs > self.args.checkPoint else remaining_epochs
+                remaining_epochs = remaining_epochs - epochs
 
                 self.train_epoch(model, train, epochs)
                 self.save_model_file(model, self.args.saveFilename)
@@ -78,11 +76,9 @@ class KerasClassifier(OSMBaseModel):
         
             self.train_default(model, train)
 
-        
     def train_epoch(self, model, train, epoch):        
         model.fit(train["morgan"], train["pEC50"], nb_epoch=epoch, batch_size=45, verbose=1)
-            
-    
+
 
 # ===============================================================================
 # The sequential neural net class developed by Vito Spadavecchio.
@@ -124,7 +120,7 @@ class ModifiedSequential(KerasClassifier):
     def __init__(self, train, test, args, log):
         super(ModifiedSequential, self).__init__(train, test, args, log)
 
-    def name(self): 
+    def name(self):
         return "Modified Sequential"
 
     def model_file_extension(self):

@@ -24,15 +24,10 @@
 #
 import csv
 import math
-import operator
 import numpy
-import argparse
-import logging
 
-import rdkit
 from rdkit import Chem
 from rdkit.Chem import AllChem
-from rdkit import DataStructs
 
 # ===================================================================================================
 #
@@ -42,7 +37,7 @@ from rdkit import DataStructs
 # Thee classes also generates molecular properties from the ligand SMILES.
 # The property currently generated is GetMorganFingerprint.
 # See the rdkit documentation for further info.
-# Futher properties are easily added by returning a dictionary
+# Further properties are easily added by returning a dictionary
 # and concatonating this to the class member dictionaries using "merge()".
 # e.g. "self.merge(self.common(),self.morgan(),self.otherpropertyA(),self.otherpropertyB(),...etc)".   
 #

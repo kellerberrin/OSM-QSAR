@@ -24,43 +24,49 @@
 #
 
 
-from OSMBase import OSMBaseModel  # The virtual model class.
+from OSMBase import OSMBaseModel, ModelMetaClass  # The virtual model class.
 
 
 # This is a stub object that can be used as a template to create new OSM classifiers.
-# 1. Copy "OSMNewModel.py" to 'OSMMyModel.py"
+# 1. Copy "OSMTemplate.py" to 'OSMMyModel.py"
 # 2. Redefine the member functions below.
-# 3. In the header of "OSMClassify.py" add "from OSMMyModel import OSMMyModelObjectName" 
-# 4. Add your new model to the "Classification" object in "OSMClassify.py"  
 
 
-class OSMNewModel(OSMBaseModel):
+class OSMTemplateModel(OSMBaseModel):   # Edit this and change the class name
 
-    def __init__(self, train, test, args, log):
-        super(OSMNewModel, self).__init__(train, test, args, log)
+# Define a bespoke metaclass to register the model as a plug-in.
+# Unwise to remove this section.
+
+    __metaclass__ = ModelMetaClass
+
+    def __init__(self, args, log):
+        super(OSMTemplateModel, self).__init__(args, log)     #Edit this and change the class name.
         
 # These functions need to be re-defined in all classifier model classes. 
-# See "OSMBaseModel.py" and "OSMSequential.py"          
-        
-    def name(self):
-        return "New Model (unimplemented)"  # Model name string.
 
-    def model_file_extension(self):
-        return "new"  # File extension string.
+    def model_name(self):
+        return "Template Model (unimplemented)"  # Model name string.
 
-    def define_model(self):
+    def model_postfix(self): # Must be unique for each model.
+        return "tmp"
+
+    def model_description(self):
+        return ("A template object of an OSM molecular classifier.\n"
+                "To implement a new OSM classification model take the following steps:\n"
+                ' 1. Copy "OSMTemplate.py" to "OSMMyNewModel.py"\n'
+                ' 2. Change the class name to "OSMMyNewModel".\n'
+                ' 3. Redefine the member functions that begin with "model_".\n'
+                " That's all. All the statistics, analytics and graphics functionality are now used by your model.")
+
+    def model_define(self):
         return None  # Should return a model.
 
-    def train_model(self, model, train): pass
+    def model_train(self, model, train): pass
 
-    def read_model(self, file_name):
-        f = open(file_name, "r")
-        self.log.info("Read OSMNewModel file: %s, content: %s", file_name, f.readline())
-        return None  # should return a model
+    def model_read(self, file_name):
+        return None  # should return a model, can just return model_define() if there is no model file.
 
-    def write_model(self, model, file_name):
-        f = open(file_name, "w")
-        f.write("OSMNewModel not implemented yet\n")
+    def model_write(self, model, file_name): pass
 
     def model_prediction(self, model, data):
         return {"prediction": data["pEC50"], "actual": data["pEC50"] }

@@ -28,35 +28,23 @@ import argparse
 import logging
 
 # Import the various classification models.
+from OSMBase import __modelClassRegistry__
+from OSMBase import get_model_method, get_model_instance, get_model_instances
 from OSMKeras import SequentialModel
 from OSMKeras import ModifiedSequential
-from OSMTemplate import OSMNewModel  # Classifier template.
+from OSMTemplate import OSMTemplateModel  # Classifier template.
 from OSMProperties import Properties  # Generate ligand molecular properties.
 
-__version__ = 1.0
+__version__ = "1.0"
 
 
 # ===================================================================================================
 # A utility class to parse the program runtime arguments
 # and setup a logger to receive classification output.
-# It is only necessary to specify the first 3 characters
-# of a classification model. For example - "seq" and "sequential" 
-# are equivalent.
-
-# Note that when specifying a load or save filename it is not necessary
-# to specify a file extension as this is added by different models.
-# For example, if the "seq" model is selected with a save file "--save_model run10", then the
-# Sequential model is saved to "run10.seq".
-
-# Current implemented models are:
-# "seq" ("Sequential") the sequential model developed by Vito Spadavecchio
-# "mod" ("ModifiedSequential") the sequential model modified to reduce (but not eliminate) overfitting.
-# "new" ("OSMNewModel") an unimplemented template model provided for the convenience of model developers.
-# "all" runs all models (except OSMNewModel) in the order listed above.
 # ===================================================================================================
 
 
-class ExecEnv(object):  # Python 2.7 new style objects. Obsolete in Python 3.
+class ExecEnv(object):
     """Utility class to setup the runtime environment and logging"""
 
     # Static class variables.
@@ -64,14 +52,33 @@ class ExecEnv(object):  # Python 2.7 new style objects. Obsolete in Python 3.
     args = None
     log = None
     cmdLine = ""
-    logFormat = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+    modelInstances = []    # Model instances are singletons.
 
     def __init__(self):
-        """Parse runtime arguments on object creation"""
 
-        # Start a console logger to complain about bad args.
+        """Parse runtime arguments on object creation and maintain the runtime environment"""
 
-        ExecEnv.log = ExecEnv.setup_logging()
+        # Start a console logger to complain about any bad args (file logger defined below).
+
+        file_log_format = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+        console_log_format = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+        ExecEnv.log = self.setup_logging(console_log_format)
+
+        # Create the model instances - ***careful***, args are not yet defined.
+        # Do not perform any classifications here.
+        # The instances should only generate postfixes, descriptions and model names.
+        # The model objects are held as singletons.
+
+        ExecEnv.modelInstances = get_model_instances(ExecEnv.args, ExecEnv.log)
+
+        # Generate a string of file extensions and create a suitable help string.
+
+        model_postfix = ""
+        for model_instance in ExecEnv.modelInstances:
+            model_postfix += model_instance.model_postfix() + ", "
+
+        classify_help = "Specify classification model(s) using postfix codes. Valid models: "
+        classify_help += model_postfix + '(default "seq").'
 
         # Parse the runtime args
 
@@ -79,7 +86,7 @@ class ExecEnv(object):  # Python 2.7 new style objects. Obsolete in Python 3.
             description="OSM_QSAR. Classification of OSM ligands using machine learning techniques.")
         # --dir
         parser.add_argument("--dir", dest="workDirectory", default="./Work/",
-                            help=('The work directory where log files, data, statistcs and model files are found.'
+                            help=('The work directory where log files, data, statistics, graphics and model files are found.'
                                   ' Use a Linux style directory specification with trailing forward slash "/"'
                                   ' (default "./Work/").'))
         # --data
@@ -87,37 +94,41 @@ class ExecEnv(object):  # Python 2.7 new style objects. Obsolete in Python 3.
                             help='The input data filename (default "OSMData.csv").')
         # --load
         parser.add_argument("--load", dest="loadFilename", default="noload",
-                            help="Loads the saved model and generates statistics but does no further training."
-                                 " Do not append file extension.")
+                            help=("Loads the saved model and generates statistics but does no further training."
+                                 "Do not specify a file extension. The file extension is inferred from "
+                                 "the model postfix."))
         # --retrain
         parser.add_argument("--retrain", dest="retrainFilename", default="noretrain",
-                            help="Loads the saved model, retrains and generates statistics."
-                                 " Do not append file extension.")
+                            help=("Loads the saved model, retrains and generates statistics."
+                                 "Do not specify a file extension. The file extension is inferred from "
+                                 "the model postfix."))
         # --save
         parser.add_argument("--save", dest="saveFilename", default="OSMClassifier",
-                            help='File name to save the model. Do not append file extension. (default "OSMClassifier")')
+                            help=('File name to save the model (default "OSMClassifier").'
+                                  "Do not specify a file extension. The file extension is inferred from "
+                                  "the model postfix."))
         # --stats
         parser.add_argument("--stats", dest="statsFilename", default="OSMStatistics.csv",
-                            help='File to append the model(s) statistics (default "OSMStatistics.csv").'
-                                 ' The statistics are saved in CSV format.')
+                            help=('File to append the model(s) statistics (default "OSMStatistics.csv").'
+                                 ' The model code is automatically post-fixed to the filename.'))
         # --newstats
         parser.add_argument("--newstats", dest="newStatsFilename", default="nonewstats", nargs='?',
-                            help='Flush an existing stats file (file name argument optional, default'
-                                 ' "OSMStatistics.csv").')
+                            help=('Flush an existing stats file. The model code is automatically post-fixed'
+                                 ' to the filename. (file name argument optional, default "OSMStatistics.csv").'))
         # --roc
         parser.add_argument("--roc", dest="rocGraph", action="store_true",
-                            help=('Generate a Receiver Operating Characteristic (ROC) graph for specified model(s).'
-                                  ' May not work on non-linux platforms.'))
-        # --log
+                            help=('Generate a Receiver Operating Characteristic (ROC) graph for specified model(s).'))
+         # --log
         parser.add_argument("--log", dest="logFilename", default="OSM_QSAR.log",
                             help='Log file. Appends the log to any existing logs (default "OSM_QSAR.log").')
         # --newlog
         parser.add_argument("--newlog", dest="newLogFilename", default="nonewlog", nargs='?',
                             help='Flush an existing log file (file name argument optional, default "OSM_QSAR.log").')
         # --model
-        parser.add_argument("--model", dest="modelType", default="seq",
-                            help=('Specify classification model(s). Valid models: "seq", "mod", "new" (default "seq").'
-                                  ' Multiple models can be specified as: "mod, seq". In this case quotes are required.'))
+        parser.add_argument("--model", dest="modelDescriptions", action="store_true",
+                            help=("Lists all defined classification models and exits."))
+        # --active
+        parser.add_argument("--classify", dest="classifyType", default="seq", help=classify_help)
         # --active
         parser.add_argument("--active", dest="activeNmols", default="active : 200.0",
                             help=('Define the ligand Active/Inactive EC50 classification thresholds in nMols'
@@ -129,7 +140,7 @@ class ExecEnv(object):  # Python 2.7 new style objects. Obsolete in Python 3.
                                   ' statistics and (optionally) the ROC graph.'))
         # --epoch
         parser.add_argument("--epoch", dest="epoch", default=-1, type=int,
-                            help='The number of training epochs (iterations). Only valid for "seq" and "mod".')
+                            help='The number of training epochs (iterations). Ignored if not valid for model.')
         # --check
         parser.add_argument("--check", dest="checkPoint", default=-1, type=int,
                             help=('Number of iterations the training model is saved. Statistics are generated'
@@ -144,7 +155,7 @@ class ExecEnv(object):  # Python 2.7 new style objects. Obsolete in Python 3.
         if not os.path.isdir(ExecEnv.args.workDirectory):
             ExecEnv.log.error('The OSM_QSAR work directory: "%s" does not exist.', ExecEnv.args.workDirectory)
             ExecEnv.log.error("Create or Rename the work directory.")
-            ExecEnv.log.error('Execute "OSM-QSAR.py --help" and examine the "--dir" flag.')
+            ExecEnv.log.error('Please examine the --dir" and "--help" flags.')
             ExecEnv.log.fatal("OSM_QSAR cannot continue.")
             sys.exit()
 
@@ -155,7 +166,7 @@ class ExecEnv(object):  # Python 2.7 new style objects. Obsolete in Python 3.
             ExecEnv.args.loadFilename = ExecEnv.args.workDirectory + ExecEnv.args.loadFilename
 
         if ExecEnv.args.retrainFilename != "noretrain":
-            ExecEnv.args.retrainFilename = ExecEnv.args.workDirectory
+            ExecEnv.args.retrainFilename = ExecEnv.args.workDirectory + ExecEnv.args.retrainFilename
 
         ExecEnv.args.saveFilename = ExecEnv.args.workDirectory + ExecEnv.args.saveFilename
         ExecEnv.args.statsFilename = ExecEnv.args.workDirectory + ExecEnv.args.statsFilename
@@ -168,22 +179,22 @@ class ExecEnv(object):  # Python 2.7 new style objects. Obsolete in Python 3.
         if ExecEnv.args.newLogFilename != "nonewlog" and ExecEnv.args.newLogFilename is not None:
             ExecEnv.args.newLogFilename = ExecEnv.args.workDirectory + ExecEnv.args.newLogFilename
             log_append = False
-            ExecEnv.setup_file_logging(ExecEnv.args.newLogFilename, log_append)
+            self.setup_file_logging(ExecEnv.args.newLogFilename, log_append, file_log_format)
 
         elif ExecEnv.args.newLogFilename is not None:  # No filename supplied (optional arg).
             ExecEnv.args.newLogFilename = ExecEnv.args.workDirectory + "OSM_QSAR.log"
             log_append = False
-            ExecEnv.setup_file_logging(ExecEnv.args.newLogFilename, log_append)
+            self.setup_file_logging(ExecEnv.args.newLogFilename, log_append, file_log_format)
 
         else:
             log_append = True
-            ExecEnv.setup_file_logging(ExecEnv.args.logFilename, log_append)
+            self.setup_file_logging(ExecEnv.args.logFilename, log_append, file_log_format)
 
         # Check that the data file exists and terminate if not.
 
         if not os.path.exists(ExecEnv.args.dataFilename):
             ExecEnv.log.error('The OSM_QSAR data file: "%s" does not exist.', ExecEnv.args.dataFilename)
-            ExecEnv.log.error('Please examine the "--dir" and "--data" flags. Execute "OSM_QSAR.py --help".')
+            ExecEnv.log.error('Please examine the "--dir", "--data" and "--help" flags.')
             ExecEnv.log.fatal("OSM_QSAR cannot continue.")
             sys.exit()
 
@@ -192,8 +203,13 @@ class ExecEnv(object):  # Python 2.7 new style objects. Obsolete in Python 3.
         for argStr in sys.argv:
             ExecEnv.cmdLine += argStr + " "
 
-    @staticmethod
-    def setup_logging():
+        # Update the args in the classifier singletons.
+
+        for instance in ExecEnv.modelInstances:
+            instance.update_args(ExecEnv.args)
+
+
+    def setup_logging(self, log_format):
         """Set up Python logging"""
 
         logger = logging.getLogger("OSMLogger")
@@ -203,14 +219,13 @@ class ExecEnv(object):  # Python 2.7 new style objects. Obsolete in Python 3.
 
         console_log = logging.StreamHandler()
         console_log.setLevel(logging.DEBUG)  # Output debug to screen
-        console_log.setFormatter(ExecEnv.logFormat)
+        console_log.setFormatter(log_format)
 
         logger.addHandler(console_log)
 
         return logger
 
-    @staticmethod
-    def setup_file_logging(log_filename, append):
+    def setup_file_logging(self, log_filename, append, log_format):
         """Set up Python logging to log file"""
 
         # Create a file log.
@@ -221,71 +236,67 @@ class ExecEnv(object):  # Python 2.7 new style objects. Obsolete in Python 3.
             file_log = logging.FileHandler(log_filename, mode='w')
 
         file_log.setLevel(logging.INFO)  # Info level and above to file.
-        file_log.setFormatter(ExecEnv.logFormat)
+        file_log.setFormatter(log_format)
 
         ExecEnv.log.addHandler(file_log)
+        if append:
+            ExecEnv.log.info("Flushed logfile: %s", log_filename)
         ExecEnv.log.info("Logging to file: %s", log_filename)
+
+
+    @staticmethod
+    def list_available_models():
+
+        model_str = "A list of available classification models:\n\n"
+
+        for model in ExecEnv.modelInstances:
+
+            model_name = model.model_name() + "\n"
+            model_str += model_name
+            model_str += "=" * len(model_name) + "\n"
+            model_postfix = "Postfix (classify):"+ model.model_postfix() + "\n"
+            model_str += model_postfix
+            model_str += "-" * len(model_postfix) + "\n"
+            model_str += model.model_description() + "\n\n"
+
+        return model_str
 
 
 # ===================================================================================================
 # This is a high level object that implements the various classification models.
-# Current implemented models are:
-# "seq" ("Sequential") the sequential model developed by Vito Spadavecchio
-# "mod" ("ModifiedSequential") the sequential model modified to reduce (but not eliminate) over-fitting.
-# "new" ("NewModel") an unimplemented stub model for the convenience of other model developers.
-
-# "all" ("all_models") runs all models in the order listed above.
-
-# The source file for "seq" and "mod" is "OSMSequential.py".
-# The source file for "new" is "OSMNTemplate.py".
-# These are imported in the header section above.
 # ====================================================================================================
 
 
-class Classification(object):
-    """Execute the requested classification model"""
-
-    def __init__(self, train, test):
-
-        model_str = ExecEnv.args.modelType[:3]
-        model_str.lower()  # Case insensitive.
-
-        if model_str == "seq":
-
-            SequentialModel(train, test, ExecEnv.args, ExecEnv.log)
-
-        elif model_str == "mod":
-
-            ModifiedSequential(train, test, ExecEnv.args, ExecEnv.log)
-
-        elif model_str == "all":
-
-            SequentialModel(train, test, ExecEnv.args, ExecEnv.log)
-            ModifiedSequential(train, test, ExecEnv.args, ExecEnv.log)
-
-        elif model_str == "new":
-
-            OSMNewModel(train, test, ExecEnv.args, ExecEnv.log)
-
-        else:
-
-            ExecEnv.log.warning("****** No Classification Performed *******")
-            ExecEnv.log.warning("Invalid classifier model specified: %s. Valid models are: ", ExecEnv.args.modelType)
-            ExecEnv.log.warning('"seq" ("Sequential")')
-            ExecEnv.log.warning('"mod" ("ModifiedSequential")')
-            ExecEnv.log.warning('"new" ("NewModel") - Note that this model is an example template')
-
-
 def main():
+
     try:
 
         ExecEnv()  # Setup the runtime environment.
+
+        # List the available models and exit.
+
+        if ExecEnv.args.modelDescriptions:
+            ExecEnv.log.info(ExecEnv.list_available_models())
+            sys.exit()
+
+        # Perform classification(s) and analytics.
+
         ExecEnv.log.info("############ OSM_QSAR %s Start Classification ###########", __version__)
         ExecEnv.log.info("Command Line: %s", ExecEnv.cmdLine)
 
         prop_obj = Properties(ExecEnv.args, ExecEnv.log)  # Use the ligand SMILEs to generate molecular properties
-        Classification(prop_obj.train,
-                       prop_obj.test)  # Create the classifier model, train the classifier and report results.
+
+
+        classify = False
+        for instance in ExecEnv.modelInstances:
+            if instance.model_postfix() == ExecEnv.args.classifyType:
+                instance.classify(prop_obj.train, prop_obj.test)
+                classify =True
+
+        if not classify:
+            ExecEnv.log.warning("No classification model found for prefix: %s", ExecEnv.args.classifyType)
+            ExecEnv.log.warning('Use the "--model" flag to see the available classification models.')
+
 
         ExecEnv.log.info("Command Line: %s", ExecEnv.cmdLine)
         ExecEnv.log.info("############ OSM_QSAR %s End Classification ###########", __version__)

@@ -4,11 +4,18 @@ OSM_QSAR
 Open Source Malaria Ligand Classification Toolkit
 -------------------------------------------------
 
-Statistical and Machine Learning methods for predicting ligand potency. 
+A modular toolkit that simplifies the development of user models for 
+predicting ligand potency. 
+
+This software currently resides in the GitHub repository:
+https://github.com/kellerberrin/OSM-QSAR
 
 OSM_QSAR software is designed to be a software toolkit to simplify the development of 
 ligand molecular screening and classification using machine learning techniques. 
-A neural network classifier can be specified and tested with 20 lines of python code. 
+It is very easy to implement ligand classification models. User models are designed 
+to "plug-in" to OSM_QSAR without further coding. A neural network classifier can be 
+specified and tested with 20 lines of python code. All user specified models 
+automatically have access to statistical and graphical analysis.
 See "OSMKeras.py" for an example neural network classifiers using the KERAS
 package. The source file "OSMTemplate.py" provides an empty template for researchers to
 specify new classification models.
@@ -22,7 +29,7 @@ can be used on Windows, Linux or Mac. It is designed for data scientists and com
 with many scientific software tools  and packages. It also has powerful package management features. 
 The use of "virtual" environments (see below) which largely avoid package version problems that 
 commonly occur between collaborating researchers on different computers. 
-It also and the excellent "conda" package management tool which greatly simplifies the installation of large
+It also has the excellent "conda" package management tool which greatly simplifies the installation of large
 and complex packages such as TENSORFLOW.  
         
 Hardware requirements:
@@ -45,7 +52,7 @@ as conda downloads and configures the necessary packages.
 Create a cmd window (you will need administrator privileges if you installed
 Anaconda for "all users") and type:
 
->conda create -n <yourenvname> python=3.5 anaconda
+>conda create -n yourenvname python=3.5 anaconda
 
 Choose python 3.5 as your virtual python version as some packages such as TENSORFLOW
 and KERAS are not yet compatible (Feb 2017) with python 3.6. The virtual environment name 
@@ -54,7 +61,7 @@ environment if you prefer (install instructions are the same).
 
 3. Activate the virtual environment and install TENSORFLOW, KERAS and RDKIT.
 
->activate <yourenvname>
+>activate yourenvname
 
 (a) Install TENSORFLOW
 
@@ -72,25 +79,42 @@ manager. This also installs THEANO.
 
 (yourenvname) >python -m pip install keras
 
-4. Download the OSM_QSAR files from GitHub and place the files in a directory of you choice,
-cd to your directory. Create a subdirectory "./Work" (case important) and place the data file "OSMData,csv"
-in this directory. The "./Work" directory receives log files, model files, molecular images, statistics
-files, etc, etc. It can be changed using the "--dir" flag.
+4. Download the OSM_QSAR files from GitHub (https://github.com/kellerberrin/OSM-QSAR) 
+and place the files in a directory of you choice,
+cd to your directory. Create a subdirectory "./Work" (case important) and place the 
+data file "OSMData,csv" in this directory. The "./Work" directory receives log 
+files, model files, molecular images, statistics files, etc, etc. It can be changed 
+using the "--dir" flag.
 
 Finally execute:
 
 (yourenvname) >python OSM_QSAR.py --epoch 1000 
 
-This executes the neural network classifier coded by Vito Spadavecchio (the default model) and
-generates a log file "OSM_QSAR.log", a statistics file "OSMStatistics.csv" and a model file
-"OSMClassify.seq". These file names and much else can be customized using optional command line 
-arguments. These are explained in the usual way (the python convention is --flag not -flag).
+This executes the neural network classifier coded by Vito Spadavecchio (the default model "seq") 
+and generates a log file "OSM_QSAR.log", a statistics file "OSMStatistics_seq.csv" a
+model file "OSMClassify_seq.mdl" and various other files with the "_seq" filename postfix. 
+These file names and much else can be customized using
+optional command line arguments. These are explained in the usual way 
+(the python convention is --flag not -flag).
+
+The help flag shows all the classification options (there are many).
 
 (yourenvname) >python OSM_QSAR.py --help 
 
 Check the OSM_QSAR version.
 
-(yourenvname) >python -c "import OSM_QSAR; print(OSM_QSAR.__version__)"
+(yourenvname) >python OSM_QSAR.py --version
+
+See which ligand classification models are implemented. It is very easy to implement
+your own classification model and a model template file is provided "OSMTemplate.py".
+User models are designed to "plug-in" to OSM_QSAR without further coding.
+
+(yourenvname) >python OSM_QSAR.py --model
+
+Classify the OSM ligands using the models "mod", "svn" and "log" and generate 
+statistical and graphical output for these models.
+
+(yourenvname) >python OSM_QSAR.py --classify "mod, svn, log"
 
 That's it! You are now up and running. Be sure to fork OSM_QSAR 
 and post any updated code on GitHub.
@@ -98,7 +122,6 @@ and post any updated code on GitHub.
 Exit your virtual environment:
 
 (yourenvname) >deactivate
->
  
 
 Install on Linux
@@ -107,15 +130,15 @@ Install on Linux
 The same as the Windows installation except that you need to prepend "source" when
 activating or deactivating a virtual environment.
 
-$source activate <yourenvname>
+$source activate yourenvname
 
-$source deactivate <yourenvname>
+$source deactivate
 
 
 Install on Mac
 --------------
 
-Sorry I don't have Mac and cannot test an installation. But it is almost 
+A Mac installation has not yet been tested. But it is almost 
 certainly the same as the Windows/Linux installation. 
 
 
@@ -126,11 +149,11 @@ To install OSMClassify in a python 2.7 environment, create a virtual environment
 and proceed as above. In Anaconda you can have an arbitrary number of
 virtual environments.
 
->conda create -n <yourenvname> python=2.7 anaconda
+>conda create -n yourenvname python=2.7 anaconda
 
 To remove an Anaconda virtual environment.
 
->conda remove --all -n <yourenvname>
+>conda remove --all -n yourenvname
 
 To list all your virtual environments. The current active environment is marked
 with a star.
@@ -148,7 +171,7 @@ You will always have 1 virtual environment called root.
 Gotchas and Annoyances.
 -----------------------
 
-TENSORFLOW is currently under intense development and the release candidates are not always stable.
+Googles Neural Network classifier TENSORFLOW is currently under intense development and the release candidates are not always stable.
 The python 3.5 version I downloaded using conda emitted some annoying but harmless error messages.
 You could always try downloading TensorFlow using pip or pip3. See the installation information
 on the TENSORFLOW website.
@@ -165,5 +188,6 @@ the details in an email to:
 
 james.duncan.mcculloch@gmail
  
+Or alternatively, register an issue on GitHub.
 
 

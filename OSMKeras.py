@@ -14,7 +14,7 @@
 #
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 # IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# FITNESS FOR A PARTICULAR PURPOSE AND NON INFRINGEMENT. IN NO EVENT SHALL THE
 # AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
@@ -32,7 +32,7 @@ from keras.models import load_model
 from keras.constraints import maxnorm
 from keras.optimizers import SGD
 
-from OSMBase import OSMBaseModel  # The virtual model class.
+from OSMBase import OSMBaseModel, ModelMetaClass  # The virtual model class.
 
 
 # ===============================================================================
@@ -41,13 +41,13 @@ from OSMBase import OSMBaseModel  # The virtual model class.
 
 class KerasClassifier(OSMBaseModel):
 
-    def __init__(self, train, test, args, log):
-        super(KerasClassifier, self).__init__(train, test, args, log)
+    def __init__(self, args, log):
+        super(KerasClassifier, self).__init__(args, log)
 
-    def read_model(self, file_name):
+    def model_read(self, file_name):
         return load_model(file_name)
 
-    def write_model(self, model, file_name):
+    def model_write(self, model, file_name):
         model.save(file_name)
 
     def model_prediction(self, model, data):
@@ -55,7 +55,7 @@ class KerasClassifier(OSMBaseModel):
         predictions_array = predictions.flatten()
         return {"prediction": predictions_array, "actual": data["pEC50"] }
 
-    def train_model(self, model, train):
+    def model_train(self, model, train):
     
         if self.args.checkPoint > 0 and self.args.epoch > self.args.checkPoint:
     
@@ -86,16 +86,28 @@ class KerasClassifier(OSMBaseModel):
 
 class SequentialModel(KerasClassifier):
 
-    def __init__(self, train, test, args, log):
-        super(SequentialModel, self).__init__(train, test, args, log)
+    # Define a bespoke metaclass to register the model as a plug-in.
+    # Unwise to remove or edit this section.
 
-    def name(self): 
+    __metaclass__ = ModelMetaClass
+
+    def __init__(self, args, log):
+        super(SequentialModel, self).__init__(args, log)
+
+    # These functions need to be re-defined in all classifier model classes.
+
+    def model_name(self):
         return "Sequential"
 
-    def model_file_extension(self):
+    def model_postfix(self):  # Must be unique for each model.
         return "seq"
 
-    def define_model(self): # Defines the sequential class with without regularizer.
+    def model_description(self):
+        return ("This is a KERAS based Neural Network classifier developed by Vito Spadavecchio.\n"
+                "The classifier uses 1024 bit Morgan molecular fingerprints in a single layer fully connected NN.")
+
+
+    def model_define(self): # Defines the sequential class with without regularizer.
     
         model = Sequential()
 
@@ -112,21 +124,32 @@ class SequentialModel(KerasClassifier):
 
 
 # ===============================================================================
-# Modified sequential class uses regularizers 
+# Modified sequential class is a multi layer neural network.
 # ===============================================================================
 
 class ModifiedSequential(KerasClassifier):
 
-    def __init__(self, train, test, args, log):
-        super(ModifiedSequential, self).__init__(train, test, args, log)
+    # Define a bespoke metaclass to register the model as a plug-in.
+    # Unwise to remove or edit this section.
 
-    def name(self):
+    __metaclass__ = ModelMetaClass
+
+    def __init__(self, args, log):
+        super(ModifiedSequential, self).__init__(args, log)
+
+    # These functions need to be re-defined in all classifier model classes.
+
+    def model_name(self):
         return "Modified Sequential"
 
-    def model_file_extension(self):
+    def model_postfix(self):   # Must be unique for each model.
         return "mod"
 
-    def define_model(self): # Defines the modified sequential class with regularizers defined.
+    def model_description(self):
+        return ("A KERAS multi-layer Neural Network enhancement of the model originally developed by Vito Spadavecchio.")
+
+
+    def model_define(self): # Defines the modified sequential class with regularizers defined.
     
         model = Sequential()
 

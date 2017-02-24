@@ -21,8 +21,9 @@
 # SOFTWARE.
 #
 #
-#
-
+# Python 2 and Python 3 compatibility imports.
+from __future__ import absolute_import, division, print_function, unicode_literals
+from six import with_metaclass
 
 from keras.models import Sequential
 from keras.layers import Dense
@@ -51,7 +52,7 @@ class KerasClassifier(OSMBaseModel):
         model.save(file_name)
 
     def model_prediction(self, model, data):
-        predictions = model.predict(data["morgan"], verbose=0)
+        predictions = model.predict(data["MORGAN"], verbose=0)
         predictions_array = predictions.flatten()
         return {"prediction": predictions_array, "actual": data["pEC50"] }
 
@@ -77,19 +78,15 @@ class KerasClassifier(OSMBaseModel):
             self.train_default(model, train)
 
     def train_epoch(self, model, train, epoch):        
-        model.fit(train["morgan"], train["pEC50"], nb_epoch=epoch, batch_size=45, verbose=1)
+        model.fit(train["MORGAN"], train["pEC50"], nb_epoch=epoch, batch_size=45, verbose=1)
 
 
 # ===============================================================================
 # The sequential neural net class developed by Vito Spadavecchio.
 # ===============================================================================
 
-class SequentialModel(KerasClassifier):
+class SequentialModel(with_metaclass(ModelMetaClass, KerasClassifier)):
 
-    # Define a bespoke metaclass to register the model as a plug-in.
-    # Unwise to remove or edit this section.
-
-    __metaclass__ = ModelMetaClass
 
     def __init__(self, args, log):
         super(SequentialModel, self).__init__(args, log)
@@ -120,19 +117,15 @@ class SequentialModel(KerasClassifier):
         return model
 
     def train_default(self, model, train):        
-        model.fit(train["morgan"], train["pEC50"], nb_epoch=1000, batch_size=45, verbose=1)
+        model.fit(train["MORGAN"], train["pEC50"], nb_epoch=1000, batch_size=45, verbose=1)
 
 
 # ===============================================================================
 # Modified sequential class is a multi layer neural network.
 # ===============================================================================
 
-class ModifiedSequential(KerasClassifier):
+class ModifiedSequential(with_metaclass(ModelMetaClass, KerasClassifier)):
 
-    # Define a bespoke metaclass to register the model as a plug-in.
-    # Unwise to remove or edit this section.
-
-    __metaclass__ = ModelMetaClass
 
     def __init__(self, args, log):
         super(ModifiedSequential, self).__init__(args, log)
@@ -169,7 +162,7 @@ class ModifiedSequential(KerasClassifier):
         return model
 
     def train_default(self, model, train):  # Reduced number of default training epoches.    
-        model.fit(train["morgan"], train["pEC50"], nb_epoch=200, batch_size=45, verbose=1)
+        model.fit(train["MORGAN"], train["pEC50"], nb_epoch=200, batch_size=45, verbose=1)
 
 
 

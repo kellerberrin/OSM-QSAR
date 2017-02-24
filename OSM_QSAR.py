@@ -22,20 +22,22 @@
 #
 #
 #
+from __future__ import absolute_import, division, print_function, unicode_literals
+
 import os
 import sys
 import argparse
 import logging
+import math
 
 # Import the various classification models.
-from OSMBase import __modelClassRegistry__
-from OSMBase import get_model_method, get_model_instance, get_model_instances
-from OSMKeras import SequentialModel
-from OSMKeras import ModifiedSequential
-from OSMTemplate import OSMTemplateModel  # Classifier template.
+from OSMBase import get_model_instances
 from OSMProperties import Properties  # Generate ligand molecular properties.
+from OSMKeras import SequentialModel, ModifiedSequential
+from OSMTemplate import OSMTemplateModel
 
-__version__ = "1.0"
+
+__version__ = "0.1"
 
 
 # ===================================================================================================
@@ -86,9 +88,9 @@ class ExecEnv(object):
             description="OSM_QSAR. Classification of OSM ligands using machine learning techniques.")
         # --dir
         parser.add_argument("--dir", dest="workDirectory", default="./Work/",
-                            help=('The work directory where log files, data, statistics, graphics and model files are found.'
-                                  ' Use a Linux style directory specification with trailing forward slash "/"'
-                                  ' (default "./Work/").'))
+                            help=('The work directory where log files, data, statistics, graphics and model files '
+                                  ' are found. Use a Linux style directory specification with trailing forward'
+                                  ' slash "/" (default "./Work/").'))
         # --data
         parser.add_argument("--data", dest="dataFilename", default="OSMData.csv",
                             help='The input data filename (default "OSMData.csv").')
@@ -109,16 +111,15 @@ class ExecEnv(object):
                                   "the model postfix."))
         # --stats
         parser.add_argument("--stats", dest="statsFilename", default="OSMStatistics.csv",
-                            help=('File to append the model(s) statistics (default "OSMStatistics.csv").'
-                                 ' The model code is automatically post-fixed to the filename.'))
+                            help=('File to append the model(s) statistics (default "OSMStatistics").'
+                                 ' The model code is automatically post-fixed to the filename.'
+                                 ' Do not specify a file extension. The file extension is always ".csv".'))
         # --newstats
         parser.add_argument("--newstats", dest="newStatsFilename", default="nonewstats", nargs='?',
                             help=('Flush an existing stats file. The model code is automatically post-fixed'
-                                 ' to the filename. (file name argument optional, default "OSMStatistics.csv").'))
-        # --roc
-        parser.add_argument("--roc", dest="rocGraph", action="store_true",
-                            help=('Generate a Receiver Operating Characteristic (ROC) graph for specified model(s).'))
-         # --log
+                                 ' to the filename. (file name argument optional, default "OSMStatistics").'
+                                 ' Do not specify a file extension. The file extension is always ".csv".'))
+        # --roc         # --log
         parser.add_argument("--log", dest="logFilename", default="OSM_QSAR.log",
                             help='Log file. Appends the log to any existing logs (default "OSM_QSAR.log").')
         # --newlog
@@ -137,7 +138,7 @@ class ExecEnv(object):
                                   ' ainactive : 600, binactive : 1000" defines 5 classifications and thresholds.'
                                   ' "inactive" is always implied and in the example will be any ligand with an'
                                   ' EC50 > 1000 nMol. These thresholds are used to generate model ROC and AUC'
-                                  ' statistics and (optionally) the ROC graph.'))
+                                  ' statistics and the ROC graph.'))
         # --epoch
         parser.add_argument("--epoch", dest="epoch", default=-1, type=int,
                             help='The number of training epochs (iterations). Ignored if not valid for model.')
@@ -158,6 +159,7 @@ class ExecEnv(object):
             ExecEnv.log.error('Please examine the --dir" and "--help" flags.')
             ExecEnv.log.fatal("OSM_QSAR cannot continue.")
             sys.exit()
+
 
         # Append the work directory to the environment file names.
 
@@ -198,6 +200,10 @@ class ExecEnv(object):
             ExecEnv.log.fatal("OSM_QSAR cannot continue.")
             sys.exit()
 
+        # Set up the classification arguments.
+
+        ExecEnv.args.activeNmols = self.classification_array(ExecEnv.args.activeNmols)
+
         # Create a command line string
 
         for argStr in sys.argv:
@@ -207,6 +213,26 @@ class ExecEnv(object):
 
         for instance in ExecEnv.modelInstances:
             instance.update_args(ExecEnv.args)
+
+
+
+
+    @staticmethod
+    def list_available_models():
+
+        model_str = "A list of available classification models:\n\n"
+
+        for model in ExecEnv.modelInstances:
+
+            model_name = model.model_name() + "\n"
+            model_str += model_name
+            model_str += "=" * len(model_name) + "\n"
+            model_postfix = "Postfix (--classify):"+ model.model_postfix() + "\n"
+            model_str += model_postfix
+            model_str += "-" * len(model_postfix) + "\n"
+            model_str += model.model_description() + "\n\n"
+
+        return model_str
 
 
     def setup_logging(self, log_format):
@@ -243,23 +269,28 @@ class ExecEnv(object):
             ExecEnv.log.info("Flushed logfile: %s", log_filename)
         ExecEnv.log.info("Logging to file: %s", log_filename)
 
+    def classification_array(self, arg_string):
+        """Return as a sorted array of tuples"""
+        sorted_array = []
+        try:
+            classify_array = [x.strip() for x in arg_string.split(',')]
+            for element in classify_array:
+                atoms = [x.strip() for x in element.split(':')]
+                pEC50_uMols = math.log10(float(atoms[1]) / 1000.0) # Convert from nMols to log10 uMols
+                sorted_array.append((pEC50_uMols,atoms[0]))
 
-    @staticmethod
-    def list_available_models():
+            sorted(sorted_array, key=lambda x: x[0])  # Ensure ordering.
 
-        model_str = "A list of available classification models:\n\n"
+            if len(sorted_array) == 0:
+                raise ValueError
 
-        for model in ExecEnv.modelInstances:
+        except:
+            ExecEnv.log.error('The "--active" argument: %s  is incorrectly formatted.', arg_string)
+            ExecEnv.log.error('Please examine the "--active" and "--help" flags.')
+            ExecEnv.log.fatal("OSM_QSAR Cannot Continue.")
+            sys.exit()
 
-            model_name = model.model_name() + "\n"
-            model_str += model_name
-            model_str += "=" * len(model_name) + "\n"
-            model_postfix = "Postfix (classify):"+ model.model_postfix() + "\n"
-            model_str += model_postfix
-            model_str += "-" * len(model_postfix) + "\n"
-            model_str += model.model_description() + "\n\n"
-
-        return model_str
+        return sorted_array
 
 
 # ===================================================================================================
@@ -311,7 +342,6 @@ def main():
 
     except SystemExit:
         clean_up = None  # Placeholder for any cleanup code.
-
 
 if __name__ == '__main__':
     main()

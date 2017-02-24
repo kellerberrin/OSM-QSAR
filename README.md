@@ -12,10 +12,9 @@ https://github.com/kellerberrin/OSM-QSAR
 
 OSM_QSAR software is designed to be a software toolkit to simplify the development of 
 ligand molecular screening and classification using machine learning techniques. 
-It is very easy to implement ligand classification models. User models are designed 
-to "plug-in" to OSM_QSAR without further coding. A neural network classifier can be 
-specified and tested with 20 lines of python code. All user specified models 
-automatically have access to statistical and graphical analysis.
+User models are designed to "plug-in" to OSM_QSAR without further coding. 
+A neural network classifier can be specified and tested with 20 lines of python code. 
+All user specified models automatically have access to statistical and graphical analysis.
 See "OSMKeras.py" for an example neural network classifiers using the KERAS
 package. The source file "OSMTemplate.py" provides an empty template for researchers to
 specify new classification models.
@@ -27,7 +26,7 @@ For easy installation and package mangement I strongly recommend (mandatory for 
 using OSM_QSAR with Anaconda python (installation below). The Anaconda python distribution 
 can be used on Windows, Linux or Mac. It is designed for data scientists and comes pre-loaded 
 with many scientific software tools  and packages. It also has powerful package management features. 
-The use of "virtual" environments (see below) which largely avoid package version problems that 
+The use of "virtual" environments (see below) largely avoid package version problems that 
 commonly occur between collaborating researchers on different computers. 
 It also has the excellent "conda" package management tool which greatly simplifies the installation of large
 and complex packages such as TENSORFLOW.  
@@ -171,7 +170,8 @@ You will always have 1 virtual environment called root.
 Gotchas and Annoyances.
 -----------------------
 
-Googles Neural Network classifier TENSORFLOW is currently under intense development and the release candidates are not always stable.
+The Google Neural Network classifier TENSORFLOW is currently under intense development 
+and the release candidates are not always stable.
 The python 3.5 version I downloaded using conda emitted some annoying but harmless error messages.
 You could always try downloading TensorFlow using pip or pip3. See the installation information
 on the TENSORFLOW website.

@@ -22,6 +22,9 @@
 #
 #
 #
+from __future__ import absolute_import, division, print_function, unicode_literals
+
+
 import math
 import numpy
 
@@ -92,7 +95,6 @@ def get_model_instances(args, log) :
 # ============================================================================
 
 
-# class OSMBaseModel(object, metaclass = ModelMetaClass):  # registers all subclasses.
 class OSMBaseModel(object):  # registers all subclasses.
 
 
@@ -208,10 +210,10 @@ class OSMBaseModel(object):  # registers all subclasses.
         actual_ranks = numpy.empty(len(actual_array), int)
         actual_ranks[temp_idx] = numpy.arange(len(actual_array)) + 1
 
-# (top 5) Active / Inactive.
+#  Active / Inactive classifications
 
-        predict_active = ["Active" if x <= 5 else "Inactive" for x in predict_ranks]
-        actual_active = ["Active" if x <= 5 else  "Inactive" for x in actual_ranks]
+        predict_active = self.classify_results(predict)
+        actual_active = self.classify_results(actual)
         
 # Return the model analysis statistics in a dictionary.
         
@@ -219,7 +221,27 @@ class OSMBaseModel(object):  # registers all subclasses.
                 "actual_ranks": actual_ranks, "predict_active": predict_active,
                 "actual_active": actual_active}
 
-# Display the classification results and write to the log file.
+    #  Active / Inactive args.activeNmols is an array of pEC50 potency sorted tuples [(potency, "classify"), ...]
+
+    def classify_results(self, results):
+
+        classified = []
+        classes = self.args.activeNmols
+        for x in results:
+            if x <= classes[0][0]:
+                class_str = classes[0][1]
+            else:
+                class_str = "inactive"
+
+            if len(classes) > 1:
+                for idx in range(len(classes)-1):
+                    if x > classes[idx][0] and x <= classes[idx+1][0]:
+                        class_str = classes[idx+1][1]
+            classified.append(class_str)
+
+        return classified
+
+    # Display the classification results and write to the log file.
 
     def display_results(self, model, test):
         """Display all the calculated statistics for each model; run"""
@@ -232,8 +254,8 @@ class OSMBaseModel(object):  # registers all subclasses.
         self.log.info("ID, Tested Rank, Pred. Rank, Tested pEC50, Pred. pEC50, Tested Active, Pred. Active")
         self.log.info("===================================================================================")
 
-        for idx in range(len(test["ids"])):
-            self.log.info("%s, %d, %d, %f, %f, %s, %s", test["ids"][idx],
+        for idx in range(len(test["ID"])):
+            self.log.info("%s, %d, %d, %f, %f, %s, %s", test["ID"][idx],
                                                         test_stats["actual_ranks"][idx],
                                                         test_stats["predict_ranks"][idx],
                                                         test_predictions["actual"][idx],

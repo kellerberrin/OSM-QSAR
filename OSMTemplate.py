@@ -72,3 +72,11 @@ class OSMTemplateModel(with_metaclass(ModelMetaClass, OSMBaseModel)):   # Edit t
         return {"prediction": data["pEC50"], "actual": data["pEC50"] }
         
 
+######################################################################################################
+#
+# Optional member functions.
+#
+######################################################################################################
+
+# Define a similarity map for the model.
+#    def model_similarity(self, model, data): pass

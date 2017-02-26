@@ -25,8 +25,6 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
 
 import sys
-import csv
-import math
 import numpy
 
 from rdkit import Chem
@@ -68,10 +66,16 @@ class Properties(object):
         self.args = args
 # Retrieve the data from CSV file.
         self.train, self.test = self.read_csv(self.args.dataFilename)
+
 # Create the properties training dictionary.
-        self.train = self.merge(self.train, self.morgan(self.train["SMILE"]))
+        self.train = self.merge(self.train,
+                                self.morgan1024(self.train["SMILE"]),
+                                self.morgan2048(self.train["SMILE"]))
+
 # Create the properties test dictionary.
-        self.test = self.merge(self.test, self.morgan(self.test["SMILE"]))
+        self.test = self.merge(self.test,
+                               self.morgan1024(self.test["SMILE"]),
+                               self.morgan2048(self.test["SMILE"]))
 
 # Read the CSV file.    
     def read_csv(self, file_name):
@@ -150,7 +154,7 @@ class Properties(object):
 
         return train_dict, test_dict
 
-# Utility function to merge property dictionarys.
+# Utility function to merge property dictionaries.
     def merge(self, *dict_args):
         """ Given any number of dicts, shallow copy and merge into a new dict."""
     
@@ -160,21 +164,34 @@ class Properties(object):
         return result
 
 
-# Generate the Morgan molecular property.
-    def morgan(self, smiles):
+# Generate the Morgan molecular fingerprint for 1024 bits..
+    def morgan1024(self, smiles):
         """ Generate Morgan molecular properties as a dictionary containing an numpy array of float[1024]"""
 
         mols = [Chem.MolFromSmiles(x) for x in smiles]
         bit_info = {}
-        morganBits = [AllChem.GetMorganFingerprintAsBitVect(x, 4, nBits=1024, bitInfo=bit_info) for x in mols]
+        morgan_fps = [AllChem.GetMorganFingerprintAsBitVect(x, 4, nBits=1024, bitInfo=bit_info) for x in mols]
 
         int_list = []
-        for arr in morganBits:
+        for arr in morgan_fps:
             int_list.append([int(x) for x in arr])
 
-        morganFloats = numpy.array(int_list, dtype=float)
+        morgan_floats = numpy.array(int_list, dtype=float)
+        return { "MORGAN1024" : morgan_floats }
 
-        return { "MORGAN" : morganFloats }
+# Generate the Morgan molecular fingerprint for 2048 bits.
+    def morgan2048(self, smiles):
+        """ Generate Morgan molecular properties as a dictionary containing an numpy array of float[2048]"""
 
+        mols = [Chem.MolFromSmiles(x) for x in smiles]
+        bit_info = {}
+        morgan_fps = [AllChem.GetMorganFingerprintAsBitVect(x, 2, nBits=2048, bitInfo=bit_info) for x in mols]
+
+        int_list = []
+        for arr in morgan_fps:
+            int_list.append([int(x) for x in arr])
+
+        morgan_floats = numpy.array(int_list, dtype=float)
+        return { "MORGAN2048" : morgan_floats }
 
 

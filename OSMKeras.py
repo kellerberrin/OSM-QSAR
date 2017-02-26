@@ -33,6 +33,12 @@ from keras.models import load_model
 from keras.constraints import maxnorm
 from keras.optimizers import SGD
 
+from rdkit import Chem
+from rdkit.Chem.Draw import SimilarityMaps
+import numpy
+from matplotlib import cm
+
+
 from OSMBase import OSMBaseModel, ModelMetaClass  # The virtual model class.
 
 
@@ -51,11 +57,6 @@ class KerasClassifier(OSMBaseModel):
     def model_write(self, model, file_name):
         model.save(file_name)
 
-    def model_prediction(self, model, data):
-        predictions = model.predict(data["MORGAN"], verbose=0)
-        predictions_array = predictions.flatten()
-        return {"prediction": predictions_array, "actual": data["pEC50"] }
-
     def model_train(self, model, train):
     
         if self.args.checkPoint > 0 and self.args.epoch > self.args.checkPoint:
@@ -66,19 +67,18 @@ class KerasClassifier(OSMBaseModel):
                 epochs = self.args.checkPoint if remaining_epochs > self.args.checkPoint else remaining_epochs
                 remaining_epochs = remaining_epochs - epochs
 
-                self.train_epoch(model, train, epochs)
+                self.keras_train_epoch(model, train, epochs)
                 self.save_model_file(model, self.args.saveFilename)
 
         elif self.args.epoch > 0:
         
-            self.train_epoch(model, train, self.args.epoch)
+            self.keras_train_epoch(model, train, self.args.epoch)
               
         else:
         
-            self.train_default(model, train)
+            self.keras_train_default(model, train)
 
-    def train_epoch(self, model, train, epoch):        
-        model.fit(train["MORGAN"], train["pEC50"], nb_epoch=epoch, batch_size=45, verbose=1)
+
 
 
 # ===============================================================================
@@ -96,8 +96,10 @@ class SequentialModel(with_metaclass(ModelMetaClass, KerasClassifier)):
     def model_name(self):
         return "Sequential"
 
+
     def model_postfix(self):  # Must be unique for each model.
         return "seq"
+
 
     def model_description(self):
         return ("This is a KERAS based Neural Network classifier developed by Vito Spadavecchio.\n"
@@ -116,8 +118,53 @@ class SequentialModel(with_metaclass(ModelMetaClass, KerasClassifier)):
 
         return model
 
-    def train_default(self, model, train):        
-        model.fit(train["MORGAN"], train["pEC50"], nb_epoch=1000, batch_size=45, verbose=1)
+    def model_prediction(self, model, data):
+        predictions = model.predict(data["MORGAN1024"], verbose=0)
+        predictions_array = predictions.flatten()
+        return {"prediction": predictions_array, "actual": data["pEC50"] }
+
+    def keras_train_epoch(self, model, train, epoch):
+        model.fit(train["MORGAN1024"], train["pEC50"], nb_epoch=epoch, batch_size=45, verbose=1)
+
+    def keras_train_default(self, model, train):
+        model.fit(train["MORGAN1024"], train["pEC50"], nb_epoch=1000, batch_size=45, verbose=1)
+
+
+######################################################################################################
+#
+# Optional member functions.
+#
+######################################################################################################
+
+
+        # Generate the png similarity diagrams for the test compounds.
+    def model_similarity(self, model, data):
+
+        self.log.info("Generating Similarity Diagrams .......")
+
+        def get_probability(fp, prob_func):
+            int_list = []
+
+            for arr in fp:
+                int_list.append(arr)
+
+            shape = []
+            shape.append(int_list)
+            fp_floats = numpy.array(shape, dtype=float)
+            return prob_func(fp_floats, verbose=0)[0][0]
+
+# Ensure that we are using 1024 bit morgan fingerprints.
+        def get_fingerprint(mol, atom):
+            return SimilarityMaps.GetMorganFingerprint(mol, atom, 4, 'bv', 1024)
+
+        for idx in range(len(data["SMILE"])):
+            mol = Chem.MolFromSmiles(data["SMILE"][idx])
+            fig, weight = SimilarityMaps.GetSimilarityMapForModel(mol,
+                                                                  get_fingerprint,
+                                                                  lambda x: get_probability(x, model.predict_proba),
+                                                                  colorMap=cm.bwr)
+
+        fig.savefig(self.args.workDirectory + data["ID"][idx] + ".png", bbox_inches="tight")
 
 
 # ===============================================================================
@@ -135,8 +182,10 @@ class ModifiedSequential(with_metaclass(ModelMetaClass, KerasClassifier)):
     def model_name(self):
         return "Modified Sequential"
 
+
     def model_postfix(self):   # Must be unique for each model.
         return "mod"
+
 
     def model_description(self):
         return ("A KERAS multi-layer Neural Network enhancement of the model originally developed by Vito Spadavecchio.")
@@ -146,11 +195,11 @@ class ModifiedSequential(with_metaclass(ModelMetaClass, KerasClassifier)):
     
         model = Sequential()
 
-#        model.add(Dense(1024, input_dim=1024, init='uniform', activation='relu',W_regularizer=l2(0.01), activity_regularizer=activity_l2(0.01)))
-        model.add(Dense(1024, input_dim=1024, init='uniform', activation='relu', W_constraint=maxnorm(3)))
-        model.add(Dropout(0.3, input_shape=(1024,)))
+#        model.add(Dense(2048, input_dim=2048, init='uniform', activation='relu',W_regularizer=l2(0.01), activity_regularizer=activity_l2(0.01)))
+        model.add(Dense(2048, input_dim=2048, init='uniform', activation='relu', W_constraint=maxnorm(3)))
+        model.add(Dropout(0.3, input_shape=(2048,)))
         model.add(Dense(30, init='normal', activation='relu', W_constraint=maxnorm(3)))
-        model.add(Dropout(0.3, input_shape=(1024,)))
+        model.add(Dropout(0.3, input_shape=(30,)))
         model.add(Dense(1, init='normal', activation='tanh'))
         model.add(Dense(1, init='normal', activation='linear'))
         sgd = SGD(lr=0.1, momentum=0.9, decay=0.0, nesterov=False)
@@ -161,9 +210,52 @@ class ModifiedSequential(with_metaclass(ModelMetaClass, KerasClassifier)):
 
         return model
 
-    def train_default(self, model, train):  # Reduced number of default training epoches.    
-        model.fit(train["MORGAN"], train["pEC50"], nb_epoch=200, batch_size=45, verbose=1)
+
+    def model_prediction(self, model, data):
+        predictions = model.predict(data["MORGAN2048"], verbose=0)
+        predictions_array = predictions.flatten()
+        return {"prediction": predictions_array, "actual": data["pEC50"]}
 
 
+    def keras_train_epoch(self, model, train, epoch):
+        model.fit(train["MORGAN2048"], train["pEC50"], nb_epoch=epoch, batch_size=45, verbose=1)
 
+
+    def keras_train_default(self, model, train):  # Reduced number of default training epoches.
+        model.fit(train["MORGAN2048"], train["pEC50"], nb_epoch=200, batch_size=45, verbose=1)
+
+######################################################################################################
+#
+# Optional member functions.
+#
+######################################################################################################
+
+# Generate the png similarity diagrams for the test compounds.
+    def model_similarity(self, model, data):
+
+        self.log.info("Generating Similarity Diagrams .......")
+
+        def get_probability(fp, prob_func):
+            int_list = []
+
+            for arr in fp:
+                int_list.append(arr)
+
+            shape = []
+            shape.append(int_list)
+            fp_floats = numpy.array(shape, dtype=float)
+            return prob_func(fp_floats, verbose=0)[0][0]
+
+        # Ensure that we are using 2048 bit morgan fingerprints.
+        def get_fingerprint(mol, atom):
+            return SimilarityMaps.GetMorganFingerprint(mol, atom, 2, 'bv', 2048)
+
+        for idx in range(len(data["SMILE"])):
+            mol = Chem.MolFromSmiles(data["SMILE"][idx])
+            fig, weight = SimilarityMaps.GetSimilarityMapForModel(mol,
+                                                                  get_fingerprint,
+                                                                  lambda x: get_probability(x, model.predict_proba),
+                                                                  colorMap=cm.bwr)
+
+        fig.savefig(self.args.workDirectory + data["ID"][idx] + ".png", bbox_inches="tight")
 

@@ -57,7 +57,6 @@ class ExecEnv(object):
     modelInstances = []    # Model instances are singletons.
 
     def __init__(self):
-
         """Parse runtime arguments on object creation and maintain the runtime environment"""
 
         # Start a console logger to complain about any bad args (file logger defined below).
@@ -294,7 +293,7 @@ class ExecEnv(object):
 
 
 # ===================================================================================================
-# This is a high level object that implements the various classification models.
+# The program mainline.
 # ====================================================================================================
 
 
@@ -316,7 +315,6 @@ def main():
         ExecEnv.log.info("Command Line: %s", ExecEnv.cmdLine)
 
         prop_obj = Properties(ExecEnv.args, ExecEnv.log)  # Use the ligand SMILEs to generate molecular properties
-
 
         classify = False
         for instance in ExecEnv.modelInstances:

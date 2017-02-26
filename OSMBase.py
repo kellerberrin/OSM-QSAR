@@ -134,6 +134,7 @@ class OSMBaseModel(OSMResults):
 
 # Perform the classification, generally there should be no need to override this method.
 
+
     def classify(self, train, test):
 
         self.model = self.create_model()

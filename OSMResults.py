@@ -24,6 +24,8 @@
 #
 from __future__ import absolute_import, division, print_function, unicode_literals
 
+import csv
+import time
 
 import math
 import scipy.stats as st
@@ -43,12 +45,41 @@ class OSMResults(object):
         self.log = log
         self.args = args
 
+#####################################################################################
+#
+# Virtual member functions
+#
+#####################################################################################
 
-    def training_stats(self, model, train):
+
+    def model_classification_results(self, model, train,  test):
+
+        self.train_predictions = self.model_prediction(model, train)   # Returns a dict. with "prediction" and "actual"
+        self.train_stats = self.model_accuracy(self.train_predictions)  # Returns a dictionary of accuracy tests.
+
+        self.test_predictions = self.model_prediction(model, test)
+        self.test_stats = self.model_accuracy(self.test_predictions)
+# Send statistics to the console and log file.
+        self.log_training_stats(model, train)
+        self.log_test_stats(model, test)
+# Generate graphics (only if the virtual function defined at model level).
+        self.model_graphics(model, train, test)
+# Append statistics to the stats file.
+        self.write_statistics(model, train, test)
+
+# Default for any model without any graphics functions.
+    def model_graphics(self, model, train, test): pass
+
+#####################################################################################
+#
+# Local member functions
+#
+#####################################################################################
+
+    def log_training_stats(self, model, train):
     
-        self.trainPredictions = self.model_prediction(model, train)   # Returns a dict. with "prediction" and "actual"
-        self.trainStats = self.model_accuracy(self.trainPredictions)  # Returns a dictionary of accuracy tests.
-        self.log.info("Training Compounds pEC50 Mean Unsigned Error (MUE): %f", self.trainStats["MUE"])
+        self.log.info("Training Compounds pEC50 Mean Unsigned Error (MUE): %f", self.train_stats["MUE"])
+        self.log.info("Training Compounds pEC50 RMS Error: %f", self.train_stats["RMSE"])
 
     def model_accuracy(self, predictions):
 
@@ -112,34 +143,79 @@ class OSMResults(object):
 
         return classified
 
-# Default for any model without similarity maps defined.
-    def model_similarity(self, model, data): pass
 
 # Display the classification results and write to the log file.
-    def display_results(self, model, test):
+    def log_test_stats(self, model, data):
         """Display all the calculated statistics for each model; run"""
 
-        test_predictions = self.model_prediction(model, test)
-        test_stats = self.model_accuracy(test_predictions)
-                
-        self.log.info("Test Compounds pEC50 Mean Unsigned Error (MUE): %f", test_stats["MUE"])
+
+        self.log.info("Test Compounds pEC50 Mean Unsigned Error (MUE): %f", self.test_stats["MUE"])
+        self.log.info("Test Compounds pEC50 RMS Error: %f", self.test_stats["RMSE"])
+
         self.log.info("Test Compounds Kendall's Rank Coefficient (tau): %f, p-value: %f",
-                      test_stats["kendall"]["tau"], test_stats["kendall"]["p-value"])
+                      self.test_stats["kendall"]["tau"], self.test_stats["kendall"]["p-value"])
         self.log.info("Test Compounds Spearman Coefficient (rho): %f, p-value: %f",
-                      test_stats["spearman"]["rho"], test_stats["spearman"]["p-value"])
-        self.log.info("Test Compounds pEC50 Mean Unsigned Error (MUE): %f", test_stats["MUE"])
+                      self.test_stats["spearman"]["rho"], self.test_stats["spearman"]["p-value"])
+        self.log.info("Test Compounds pEC50 Mean Unsigned Error (MUE): %f", self.test_stats["MUE"])
         self.log.info("Test Compounds Results")
         self.log.info("ID, Tested Rank, Pred. Rank, Tested pEC50, Pred. pEC50, Tested Active, Pred. Active")
         self.log.info("===================================================================================")
 
-        for idx in range(len(test["ID"])):
-            self.log.info("%s, %d, %d, %f, %f, %s, %s", test["ID"][idx],
-                                                        test_stats["actual_ranks"][idx],
-                                                        test_stats["predict_ranks"][idx],
-                                                        test_predictions["actual"][idx],
-                                                        test_predictions["prediction"][idx],
-                                                        test_stats["actual_active"][idx],
-                                                        test_stats["predict_active"][idx]),
+        for idx in range(len(data["ID"])):
+            self.log.info("%s, %d, %d, %f, %f, %s, %s", data["ID"][idx],
+                                                        self.test_stats["actual_ranks"][idx],
+                                                        self.test_stats["predict_ranks"][idx],
+                                                        self.test_predictions["actual"][idx],
+                                                        self.test_predictions["prediction"][idx],
+                                                        self.test_stats["actual_active"][idx],
+                                                        self.test_stats["predict_active"][idx]),
 
-        self.model_similarity(model, test)
 
+
+
+    def write_statistics(self, model, train, test):
+
+# Open the statistics file and append the model results statistics.
+
+        try:
+
+            with open(self.args.statsFilename, 'a') as stats_file:
+
+                line = "****************,Classification,******************\n"
+                stats_file.write(line)
+                line = "Model, {}\n".format(self.model_name())
+                stats_file.write(line)
+                line = "Runtime, {}\n".format(time.asctime( time.localtime(time.time()) ))
+                stats_file.write(line)
+                line = "CPUtime, {}\n".format(time.clock())
+                stats_file.write(line)
+                line = "++++++++++++++++,Test Statistics,++++++++++++++++\n"
+                stats_file.write(line)
+                line = "MUE, {}\n".format(self.test_stats["MUE"])
+                stats_file.write(line)
+                line = "RMSE, {}\n".format(self.test_stats["RMSE"])
+                stats_file.write(line)
+                line = "Kendall, {}, {}\n".format(self.test_stats["kendall"]["tau"],
+                                                  self.test_stats["kendall"]["p-value"])
+                stats_file.write(line)
+                line = "Spearman, {}, {}\n".format(self.test_stats["spearman"]["rho"],
+                                                   self.test_stats["spearman"]["p-value"])
+                stats_file.write(line)
+                line = "ID, Rank, Pred_Rank, Tested_pEC50, Pred_pEC50, Tested_Active, Pred_Active, SMILE\n"
+                stats_file.write(line)
+
+                for idx in range(len(test["ID"])):
+                    line = "{}, {}, {}, {}, {}, {}, {}, {}\n".format(test["ID"][idx],
+                                                               self.test_stats["actual_ranks"][idx],
+                                                               self.test_stats["predict_ranks"][idx],
+                                                               self.test_predictions["actual"][idx],
+                                                               self.test_predictions["prediction"][idx],
+                                                               self.test_stats["actual_active"][idx],
+                                                               self.test_stats["predict_active"][idx],
+                                                               test["SMILE"][idx])
+                    stats_file.write(line)
+
+
+
+        except IOError:
+            self.log.error("Problem writing to statistics file %s, check path and permissions", self.args.statsFilename)

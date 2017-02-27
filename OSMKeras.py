@@ -25,6 +25,10 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
 from six import with_metaclass
 
+import os
+import numpy
+from matplotlib import cm
+
 from keras.models import Sequential
 from keras.layers import Dense
 from keras.layers import Dropout
@@ -35,9 +39,6 @@ from keras.optimizers import SGD
 
 from rdkit import Chem
 from rdkit.Chem.Draw import SimilarityMaps
-import numpy
-from matplotlib import cm
-
 
 from OSMBase import OSMBaseModel, ModelMetaClass  # The virtual model class.
 
@@ -79,6 +80,8 @@ class KerasClassifier(OSMBaseModel):
             self.keras_train_default(model, train)
 
 
+    def model_graphics(self, model, train, test):
+        self.model_similarity(model, test)      #Only generate similarity maps for the test data.
 
 
 # ===============================================================================
@@ -102,7 +105,7 @@ class SequentialModel(with_metaclass(ModelMetaClass, KerasClassifier)):
 
 
     def model_description(self):
-        return ("This is a KERAS based Neural Network classifier developed by Vito Spadavecchio.\n"
+        return ("A KERAS (TensorFlow) based Neural Network classifier developed by Vito Spadavecchio.\n"
                 "The classifier uses 1024 bit Morgan molecular fingerprints in a single layer fully connected NN.")
 
 
@@ -163,8 +166,7 @@ class SequentialModel(with_metaclass(ModelMetaClass, KerasClassifier)):
                                                                   get_fingerprint,
                                                                   lambda x: get_probability(x, model.predict_proba),
                                                                   colorMap=cm.bwr)
-
-        fig.savefig(self.args.workDirectory + data["ID"][idx] + ".png", bbox_inches="tight")
+            fig.savefig(os.path.join(self.args.graphicsDirectory,data["ID"][idx] + ".png"), bbox_inches="tight")
 
 
 # ===============================================================================
@@ -188,7 +190,8 @@ class ModifiedSequential(with_metaclass(ModelMetaClass, KerasClassifier)):
 
 
     def model_description(self):
-        return ("A KERAS multi-layer Neural Network enhancement of the model originally developed by Vito Spadavecchio.")
+        return ("A KERAS (TensorFlow) multi-layer Neural Network classification model. \n"
+                "This classifier analyzes 2048 bit Morgan molecular fingerprints.")
 
 
     def model_define(self): # Defines the modified sequential class with regularizers defined.
@@ -256,6 +259,5 @@ class ModifiedSequential(with_metaclass(ModelMetaClass, KerasClassifier)):
                                                                   get_fingerprint,
                                                                   lambda x: get_probability(x, model.predict_proba),
                                                                   colorMap=cm.bwr)
-
-        fig.savefig(self.args.workDirectory + data["ID"][idx] + ".png", bbox_inches="tight")
+            fig.savefig(os.path.join(self.args.graphicsDirectory,data["ID"][idx] + ".png"), bbox_inches="tight")
 

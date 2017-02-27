@@ -121,9 +121,9 @@ class OSMBaseModel(OSMResults):
 #        arrayOfActual = [ 0.0, 1.0, -1.0] # Get an array of actual (predicted) values.
 #        return { "prediction" : arrayOfPredictions, "actual" : arrayOfActualValues }
 #
-# The following virtual functions are optionally implemented.
+# The following virtual functions are optionally implemented in the model subclasses.
 #
-#   def model_similarity(self, model, data): pass # Generate png similarity maps for the test compounds.
+#   def model_graphics(self, model, train, test): pass # Generate similarity maps, etc. for the test compounds.
 #
 # ============================================================================        
 
@@ -144,16 +144,13 @@ class OSMBaseModel(OSMResults):
             self.fit_model(self.model, train)
             self.save_model_file(self.model, self.args.saveFilename)
 
-        # Display training stats
-        self.training_stats(self.model, train)
-
-        # Display test results.
-        self.display_results(self.model, test)
+        # Basic results to log file, generate graphics, generate statistics file (uses OSMResult object).
+        self.model_classification_results(self.model, train,  test)
 
 
     def save_model_file(self, model, save_file):
         if save_file != "nosave":
-            save_file = save_file + "." + self.model_postfix()
+            save_file = save_file
             self.log.info("Saving Trained %s Model in File: %s", self.model_name(), save_file)
             self.model_write(model, save_file)
 
@@ -161,9 +158,9 @@ class OSMBaseModel(OSMResults):
         if self.args.loadFilename != "noload" or self.args.retrainFilename != "noretrain":
             
             if self.args.loadFilename != "noload":
-                load_file = self.args.loadFilename + "." + self.model_postfix()
+                load_file = self.args.loadFilename
             else:
-                load_file = self.args.retrainFilename + "." + self.model_postfix()
+                load_file = self.args.retrainFilename
                 
             self.log.info("Loading Pre-Trained %s Model File: %s", self.model_name(), load_file)
             model = self.model_read(load_file)

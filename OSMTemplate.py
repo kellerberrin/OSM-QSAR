@@ -55,8 +55,9 @@ class OSMTemplateModel(with_metaclass(ModelMetaClass, OSMBaseModel)):   # Edit t
                 ' 1. Copy "OSMTemplate.py" to "OSMMyNewModel.py"\n'
                 ' 2. Change the class name to "OSMMyNewModel".\n'
                 ' 3. Redefine the member functions that begin with "model_".\n'
-                ' 4. add the line "from OSMMyNewModel import OSMMYNewModel" to "OSM_QSAR.py".\n'
-                " That's all. All the statistics, analytics and graphics functionality are now used by your model.")
+                ' 4. Add the line "from OSMMyNewModel import OSMMYNewModel" to "OSM_QSAR.py".\n'
+                " That's all. All the statistics, analytics and (implemented) graphics functionality\n"
+                " are now used by your model.")
 
     def model_define(self):
         return None  # Should return a model.

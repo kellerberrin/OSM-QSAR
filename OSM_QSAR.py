@@ -29,6 +29,7 @@ import sys
 import argparse
 import logging
 import math
+import time
 
 # Import the various classification models.
 from OSMBase import get_model_instances
@@ -78,8 +79,10 @@ class ExecEnv(object):
         for model_instance in ExecEnv.modelInstances:
             model_postfix += model_instance.model_postfix() + ", "
 
-        classify_help = "Specify classification model(s) using postfix codes. Valid models: "
+        classify_help = "Specify which classification model OSM_QSAR will execute using the model postfix code. "
+        classify_help += "Current defined model postfixes are: "
         classify_help += model_postfix + '(default "seq").'
+        classify_help += 'For more information on current models specify the "--model" flag.'
 
         # Parse the runtime args
 
@@ -87,43 +90,62 @@ class ExecEnv(object):
             description="OSM_QSAR. Classification of OSM ligands using machine learning techniques.")
         # --dir
         parser.add_argument("--dir", dest="workDirectory", default="./Work/",
-                            help=('The work directory where log files, data, statistics, graphics and model files '
-                                  ' are found. Use a Linux style directory specification with trailing forward'
-                                  ' slash "/" (default "./Work/").'))
+                            help=('The work directory where log files and data files are found.'
+                                  ' of this directory. Use a Linux style directory specification with trailing forward'
+                                  ' slash "/" (default "./Work/").'
+                                  " Important - to run OSM_QSAR this directory must exist, it will not be created."
+                                  ' Model specific files (models, statistics and graphics) are in the '
+                                  'subdirectories "/<WorkDir>/postfix/".'))
+
         # --data
         parser.add_argument("--data", dest="dataFilename", default="OSMData.csv",
-                            help='The input data filename (default "OSMData.csv").')
+                            help=('The input data filename (default "OSMData.csv").'
+                                 " Important - to run OSM_QSAR this file must exist in the Work directory."
+                                 ' For example, if this flag is not specified then OSM_QSAR attempts to read the'
+                                 ' data file at "/<WorkDir>/OSMData.csv".'
+                                 " See the additional OSM_QSAR documentation for the format of this file."))
+
         # --load
         parser.add_argument("--load", dest="loadFilename", default="noload",
-                            help=("Loads the saved model and generates statistics but does no further training."
-                                 "Do not specify a file extension. The file extension is inferred from "
-                                 "the model postfix."))
+                            help=("Loads the saved model and generates statistics and graphics but does no "
+                                  " further training."
+                                  " This file is always located in the model postfix subdirectory of the Work"
+                                  ' directory. For example, specifying "mymodel.mdl"'
+                                  ' loads "./<WorkDir>/postfix/mymodel.mdl".'))
         # --retrain
         parser.add_argument("--retrain", dest="retrainFilename", default="noretrain",
-                            help=("Loads the saved model, retrains and generates statistics."
-                                 "Do not specify a file extension. The file extension is inferred from "
-                                 "the model postfix."))
+                            help=("Loads the saved model, retrains and generates statistics and graphics."
+                                  " This file is always located in the model postfix subdirectory of the Work"
+                                  ' directory. For example, specifying "mymodel.mdl"'
+                                  ' loads "./<WorkDir>/postfix/mymodel.mdl".'))
         # --save
-        parser.add_argument("--save", dest="saveFilename", default="OSMClassifier",
-                            help=('File name to save the model (default "OSMClassifier").'
-                                  "Do not specify a file extension. The file extension is inferred from "
-                                  "the model postfix."))
+        parser.add_argument("--save", dest="saveFilename", default="OSMClassifier.mdl",
+                            help=('File name to save the model (default "OSMClassifier.mdl").'
+                                  ' The model file is always saved to the model postfix subdirectory.'
+                                  ' For example, if this flag is not specified the model is saved to:'
+                                  ' "./<WorkDir>/postfix/OSMClassifier.mdl".'
+                                  ' The postfix directory is created if it does not exist.'))
         # --stats
         parser.add_argument("--stats", dest="statsFilename", default="OSMStatistics.csv",
-                            help=('File to append the model(s) statistics (default "OSMStatistics").'
-                                 ' The model code is automatically post-fixed to the filename.'
-                                 ' Do not specify a file extension. The file extension is always ".csv".'))
+                            help=('File to append the model statistics (default "OSMStatistics").'
+                                  ' The statistics file is always saved to the model postfix subdirectory.'
+                                  ' For example, if this flag is not specified the model is saved to:'
+                                  ' "./<WorkDir>/postfix/OSMStatistics.csv".'
+                                  ' The postfix directory is created if it does not exist.'))
         # --newstats
-        parser.add_argument("--newstats", dest="newStatsFilename", default="nonewstats", nargs='?',
-                            help=('Flush an existing stats file. The model code is automatically post-fixed'
-                                 ' to the filename. (file name argument optional, default "OSMStatistics").'
-                                 ' Do not specify a file extension. The file extension is always ".csv".'))
-        # --roc         # --log
+        parser.add_argument("--clean", dest="cleanFlag", action="store_true",
+                            help=('Delete all files in the model postfix directory before OSM_QSAR executes.'
+                                  " The directory cleaned is the same directory that the model is being saved."
+                                  ' This directory is always"./<WorkDir>/postfix/".'
+                                  ' The "--clean" flag cannot be used with the "--load" or "--retrain" flags.'))
+        # --log
         parser.add_argument("--log", dest="logFilename", default="OSM_QSAR.log",
-                            help='Log file. Appends the log to any existing logs (default "OSM_QSAR.log").')
+                            help=('Log file. Appends the log to any existing logs (default "OSM_QSAR.log").'
+                                  'The log file always resides in the work directory.'))
         # --newlog
         parser.add_argument("--newlog", dest="newLogFilename", default="nonewlog", nargs='?',
-                            help='Flush an existing log file (file name argument optional, default "OSM_QSAR.log").')
+                            help='Flush an existing log file (file name argument optional, default "OSM_QSAR.log").'
+                                 'The log file always resides in the work directory.')
         # --model
         parser.add_argument("--model", dest="modelDescriptions", action="store_true",
                             help=("Lists all defined classification models and exits."))
@@ -150,6 +172,7 @@ class ExecEnv(object):
 
         ExecEnv.args = parser.parse_args()
 
+
         # Check that the work directory exists and terminate if not.
 
         if not os.path.isdir(ExecEnv.args.workDirectory):
@@ -159,31 +182,73 @@ class ExecEnv(object):
             ExecEnv.log.fatal("OSM_QSAR cannot continue.")
             sys.exit()
 
+        # Check to see if the postfix directory exists and create if necessary.
 
-        # Append the work directory to the environment file names.
+        postfix_directory = os.path.join(ExecEnv.args.workDirectory,ExecEnv.args.classifyType)
+        if not os.path.isdir(postfix_directory):
+            ExecEnv.log.info('The model postfix directory: "%s" does not exist. Creating it.', postfix_directory)
+            try:
+                os.makedirs(postfix_directory)
+            except OSError:
+                ExecEnv.log.error("Could not create model postfix directory: %s.", postfix_directory)
+                ExecEnv.log.error("Check the work directory: %s permissions.", ExecEnv.args.workDirectory)
+                ExecEnv.log.fatal("OSM_QSAR cannot continue.")
+                sys.exit()
 
-        ExecEnv.args.dataFilename = ExecEnv.args.workDirectory + ExecEnv.args.dataFilename
+        # Check that the "--clean" flag is not specified with "--load" or "--retrain".
+
+        if (ExecEnv.args.cleanFlag and
+           (ExecEnv.args.loadFilename != "noload" or ExecEnv.args.retrainFilename != "noretrain")):
+
+            ExecEnv.log.error('The "--clean" flag cannot be used with the "--load" or "--retrain" flags.')
+            ExecEnv.log.fatal("OSM_QSAR cannot continue.")
+            sys.exit()
+
+        elif ExecEnv.args.cleanFlag:
+
+        # clean the postfix directory if the "--clean" flag is specified..
+
+            for file_name in os.listdir(postfix_directory):
+                file_path = os.path.join(postfix_directory, file_name)
+                try:
+                    if os.path.isfile(file_path):
+                        os.unlink(file_path)
+                except OSError:
+                    ExecEnv.log.error('Specified the "--clean" flag. Could not delete file: %s.', file_path)
+                    ExecEnv.log.error("Check directory and file permissions.")
+                    ExecEnv.log.fatal("OSM_QSAR cannot continue.")
+                    sys.exit()
+
+        # List the available models and exit.
+
+        if ExecEnv.args.modelDescriptions:
+            ExecEnv.log.info(ExecEnv.list_available_models())
+            sys.exit()
+
+        # Append the postfix directory to the environment file names.
+
+        ExecEnv.args.graphicsDirectory = postfix_directory
+
+        ExecEnv.args.dataFilename = os.path.join(ExecEnv.args.workDirectory, ExecEnv.args.dataFilename)
+
         if ExecEnv.args.loadFilename != "noload":
-            ExecEnv.args.loadFilename = ExecEnv.args.workDirectory + ExecEnv.args.loadFilename
+            ExecEnv.args.loadFilename = os.path.join(postfix_directory,ExecEnv.args.loadFilename)
 
         if ExecEnv.args.retrainFilename != "noretrain":
-            ExecEnv.args.retrainFilename = ExecEnv.args.workDirectory + ExecEnv.args.retrainFilename
+            ExecEnv.args.retrainFilename = os.path.join(postfix_directory,ExecEnv.args.retrainFilename)
 
-        ExecEnv.args.saveFilename = ExecEnv.args.workDirectory + ExecEnv.args.saveFilename
-        ExecEnv.args.statsFilename = ExecEnv.args.workDirectory + ExecEnv.args.statsFilename
+        ExecEnv.args.saveFilename = os.path.join(postfix_directory,ExecEnv.args.saveFilename)
+        ExecEnv.args.statsFilename = os.path.join(postfix_directory,ExecEnv.args.statsFilename)
 
-        if ExecEnv.args.newStatsFilename != "nonewstats":
-            ExecEnv.args.newStatsFilename = ExecEnv.args.workDirectory + ExecEnv.args.newStatsFilename
-
-        ExecEnv.args.logFilename = ExecEnv.args.workDirectory + ExecEnv.args.logFilename
+        ExecEnv.args.logFilename = os.path.join(ExecEnv.args.workDirectory,ExecEnv.args.logFilename)
 
         if ExecEnv.args.newLogFilename != "nonewlog" and ExecEnv.args.newLogFilename is not None:
-            ExecEnv.args.newLogFilename = ExecEnv.args.workDirectory + ExecEnv.args.newLogFilename
+            ExecEnv.args.newLogFilename = os.path.join(ExecEnv.args.workDirectory,ExecEnv.args.newLogFilename)
             log_append = False
             self.setup_file_logging(ExecEnv.args.newLogFilename, log_append, file_log_format)
 
         elif ExecEnv.args.newLogFilename is not None:  # No filename supplied (optional arg).
-            ExecEnv.args.newLogFilename = ExecEnv.args.workDirectory + "OSM_QSAR.log"
+            ExecEnv.args.newLogFilename = os.path.join(ExecEnv.args.workDirectory,"OSM_QSAR.log")
             log_append = False
             self.setup_file_logging(ExecEnv.args.newLogFilename, log_append, file_log_format)
 
@@ -203,16 +268,18 @@ class ExecEnv(object):
 
         ExecEnv.args.activeNmols = self.classification_array(ExecEnv.args.activeNmols)
 
-        # Create a command line string
+        # Create some additional entries in the argument namespace for cmd line and cpu time variables..
 
+        cmd_line = ""
         for argStr in sys.argv:
-            ExecEnv.cmdLine += argStr + " "
+            cmd_line += argStr + " "
+
+        ExecEnv.cmdLine = cmd_line
 
         # Update the args in the classifier singletons.
 
         for instance in ExecEnv.modelInstances:
             instance.update_args(ExecEnv.args)
-
 
 
 
@@ -301,15 +368,9 @@ def main():
 
     try:
 
+
         ExecEnv()  # Setup the runtime environment.
 
-        # List the available models and exit.
-
-        if ExecEnv.args.modelDescriptions:
-            ExecEnv.log.info(ExecEnv.list_available_models())
-            sys.exit()
-
-        # Perform classification(s) and analytics.
 
         ExecEnv.log.info("############ OSM_QSAR %s Start Classification ###########", __version__)
         ExecEnv.log.info("Command Line: %s", ExecEnv.cmdLine)
@@ -326,8 +387,9 @@ def main():
             ExecEnv.log.warning("No classification model found for prefix: %s", ExecEnv.args.classifyType)
             ExecEnv.log.warning('Use the "--model" flag to see the available classification models.')
 
-
         ExecEnv.log.info("Command Line: %s", ExecEnv.cmdLine)
+        ExecEnv.log.info("Elapsed seconds CPU time %f (all processors, may exceed clock time, assumes no GPU)."
+                         , time.clock())
         ExecEnv.log.info("############ OSM_QSAR %s End Classification ###########", __version__)
 
     except KeyboardInterrupt:

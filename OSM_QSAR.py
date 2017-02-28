@@ -36,6 +36,7 @@ from OSMBase import get_model_instances
 from OSMProperties import Properties  # Generate ligand molecular properties.
 from OSMKeras import SequentialModel, ModifiedSequential
 from OSMTemplate import OSMTemplateModel
+from OSMSKLearn import OSMSKLearnSVM
 
 
 __version__ = "0.1"

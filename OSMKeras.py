@@ -28,6 +28,8 @@ from six import with_metaclass
 import os
 import numpy
 from matplotlib import cm
+import matplotlib.pyplot as plt
+
 
 from keras.models import Sequential
 from keras.layers import Dense
@@ -154,7 +156,8 @@ class SequentialModel(with_metaclass(ModelMetaClass, KerasClassifier)):
             shape = []
             shape.append(int_list)
             fp_floats = numpy.array(shape, dtype=float)
-            return prob_func(fp_floats, verbose=0)[0][0]
+            prediction = prob_func(fp_floats, verbose=0)[0][0] #returns an pEC50 prediction (not probability)
+            return prediction * -1 # Flip the sign, -ve is good.
 
 # Ensure that we are using 1024 bit morgan fingerprints.
         def get_fingerprint(mol, atom):
@@ -164,9 +167,12 @@ class SequentialModel(with_metaclass(ModelMetaClass, KerasClassifier)):
             mol = Chem.MolFromSmiles(data["SMILE"][idx])
             fig, weight = SimilarityMaps.GetSimilarityMapForModel(mol,
                                                                   get_fingerprint,
-                                                                  lambda x: get_probability(x, model.predict_proba),
+                                                                  lambda x: get_probability(x, model.predict),
                                                                   colorMap=cm.bwr)
-            fig.savefig(os.path.join(self.args.graphicsDirectory,data["ID"][idx] + ".png"), bbox_inches="tight")
+            graph_file_name = data["ID"][idx] + "_" + self.model_postfix() + ".png"
+            graph_path_name = os.path.join(self.args.graphicsDirectory, graph_file_name)
+            fig.savefig(graph_path_name, bbox_inches="tight")
+            plt.close(fig)  # release memory
 
 
 # ===============================================================================
@@ -247,7 +253,8 @@ class ModifiedSequential(with_metaclass(ModelMetaClass, KerasClassifier)):
             shape = []
             shape.append(int_list)
             fp_floats = numpy.array(shape, dtype=float)
-            return prob_func(fp_floats, verbose=0)[0][0]
+            prediction = prob_func(fp_floats, verbose=0)[0][0]   #returns an pEC50 prediction (not probability)
+            return prediction * -1.0 # Flip the sign, -ve is good.
 
         # Ensure that we are using 2048 bit morgan fingerprints.
         def get_fingerprint(mol, atom):
@@ -257,7 +264,10 @@ class ModifiedSequential(with_metaclass(ModelMetaClass, KerasClassifier)):
             mol = Chem.MolFromSmiles(data["SMILE"][idx])
             fig, weight = SimilarityMaps.GetSimilarityMapForModel(mol,
                                                                   get_fingerprint,
-                                                                  lambda x: get_probability(x, model.predict_proba),
+                                                                  lambda x: get_probability(x, model.predict),
                                                                   colorMap=cm.bwr)
-            fig.savefig(os.path.join(self.args.graphicsDirectory,data["ID"][idx] + ".png"), bbox_inches="tight")
+            graph_file_name = data["ID"][idx] + "_" + self.model_postfix() + ".png"
+            graph_path_name = os.path.join(self.args.graphicsDirectory, graph_file_name)
+            fig.savefig(graph_path_name, bbox_inches="tight")
+            plt.close(fig) # release memory
 

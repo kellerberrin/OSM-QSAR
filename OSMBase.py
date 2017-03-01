@@ -24,7 +24,6 @@
 #
 from __future__ import absolute_import, division, print_function, unicode_literals
 
-from OSMResults import OSMResults
 
 # ============================================================================
 #  A register of classifier models implemented as a dictionary
@@ -94,16 +93,14 @@ def get_model_instances(args, log) :
 # ============================================================================
 
 
-class OSMBaseModel(OSMResults):
-
+class OSMBaseModel(object):
 
     def __init__(self, args, log):
-        super(OSMBaseModel, self).__init__(args, log)
+
 
         # Shallow copies of the runtime environment.
         self.log = log
         self.args = args
-
 
 # ============================================================================        
 # These functions must be defined in derived classes.
@@ -120,6 +117,8 @@ class OSMBaseModel(OSMResults):
 #        arrayOfPredictions = [-1.0, 0.0, 1.0 ] # Use the model to generate predictions.
 #        arrayOfActual = [ 0.0, 1.0, -1.0] # Get an array of actual (predicted) values.
 #        return { "prediction" : arrayOfPredictions, "actual" : arrayOfActualValues }
+#    def model_log_statistics(model, train)   # log prediction statistics to the console and log file.
+#    def model_write_statistics(model, train)  # append prediction statistics to a file.
 #
 # The following virtual functions are optionally implemented in the model subclasses.
 #
@@ -127,13 +126,15 @@ class OSMBaseModel(OSMResults):
 #
 # ============================================================================        
 
-# Necessary because we need to create the classifier singletons before the args are ready.
 
-    def update_args(self, args):
-        self.args = args
+#####################################################################################
+#
+# Local member functions that call virtual member functions defined
+# elsewhere in the object hierarchy. All functions prefixed "model_" are virtual.
+#
+#####################################################################################
 
-# Perform the classification, generally there should be no need to override this method.
-
+# Perform the classification, this is the mainline function.
 
     def classify(self, train, test):
 
@@ -144,8 +145,9 @@ class OSMBaseModel(OSMResults):
             self.fit_model(self.model, train)
             self.save_model_file(self.model, self.args.saveFilename)
 
-        # Basic results to log file, generate graphics, generate statistics file (uses OSMResult object).
-        self.model_classification_results(self.model, train,  test)
+        # Write results to log file, generate graphics, generate statistics file.
+        # This is a virtual function and calls either OSMRegression or OSMClassifier depending on classification type.
+        self.classification_results(self.model, train,  test)
 
 
     def save_model_file(self, model, save_file):
@@ -175,4 +177,66 @@ class OSMBaseModel(OSMResults):
         self.log.info("Begin Training %s Model", self.model_name())
         self.model_train(model, train)
         self.log.info("End Training %s Model", self.model_name())
+
+    def classification_results(self, model, train, test):
+        self.train_predictions = self.model_prediction(model,train)  # Returns a dict. with "prediction" and "actual"
+     #   self.train_stats = self.model_accuracy(self.train_predictions)  # Returns a dictionary of accuracy tests.
+
+        self.test_predictions = self.model_prediction(model, test)
+        self.test_stats = self.model_accuracy(self.test_predictions)
+        # Send statistics to the console and log file.
+        self.model_log_statistics(model, train, test)
+        # Generate graphics (only if the virtual function defined at model level).
+        self.model_graphics(model, train, test)
+        # Append statistics to the stats file.
+        self.model_write_statistics(model, train, test)
+
+    #####################################################################################
+    #
+    # Virtual member functions used elsewhere in the object hierarchy
+    #
+    #####################################################################################
+
+    # Necessary because we need to create the classifier singletons before the args are ready.
+    def model_update_args(self, args):
+        self.args = args
+
+    # Default for any model without any graphics functions.
+    def model_graphics(self, model, train, test): pass
+
+    # Accepts an list (array) of pEC50 values and returns a list (array) of classification labels.
+    #  Active / Inactive args.activeNmols is a list (array) of pEC50 potency sorted tuples [(potency, "classify"), ...]
+    def model_classify_pEC50(self, value_array):
+
+        class_array = []
+        classes = self.args.activeNmols
+        for x in value_array:
+
+            if x <= classes[0][0]:
+                class_str = classes[0][1]
+            else:
+                class_str = "inactive"
+
+            if len(classes) > 1:
+                for idx in range(len(classes) - 1):
+                    if x > classes[idx][0] and x <= classes[idx + 1][0]:
+                        class_str = classes[idx + 1][1]
+
+            class_array.append(class_str)
+
+        return class_array
+
+    # Returns a list of defined potency classification classes, including the implied "inactive" class.
+    def model_enumerate_classes(self):
+
+        class_array = []
+        potency_classes = self.args.activeNmols
+
+        for potency_class in potency_classes:
+            class_array.append(potency_class[1])
+
+        class_array.append("inactive")
+
+        return class_array
+
 

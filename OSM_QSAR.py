@@ -36,7 +36,7 @@ from OSMBase import get_model_instances
 from OSMProperties import Properties  # Generate ligand molecular properties.
 from OSMKeras import SequentialModel, ModifiedSequential
 from OSMTemplate import OSMTemplateModel
-from OSMSKLearn import OSMSKLearnSVM
+from OSMSKLearn import OSMSKLearnSVMR
 
 
 __version__ = "0.1"
@@ -183,6 +183,19 @@ class ExecEnv(object):
             ExecEnv.log.fatal("OSM_QSAR cannot continue.")
             sys.exit()
 
+        # Check that the specified model postfix exists
+
+        classify = False
+        for instance in ExecEnv.modelInstances:
+            if instance.model_postfix() == ExecEnv.args.classifyType:
+                classify =True
+
+        if not classify:
+            ExecEnv.log.warning("No classification model found for prefix: %s", ExecEnv.args.classifyType)
+            ExecEnv.log.warning('Use the "--model" flag to see the available classification models.')
+            ExecEnv.log.fatal("OSM_QSAR cannot continue.")
+            sys.exit()
+
         # Check to see if the postfix directory exists and create if necessary.
 
         postfix_directory = os.path.join(ExecEnv.args.workDirectory,ExecEnv.args.classifyType)
@@ -280,7 +293,7 @@ class ExecEnv(object):
         # Update the args in the classifier singletons.
 
         for instance in ExecEnv.modelInstances:
-            instance.update_args(ExecEnv.args)
+            instance.model_update_args(ExecEnv.args)
 
 
 
@@ -378,15 +391,9 @@ def main():
 
         prop_obj = Properties(ExecEnv.args, ExecEnv.log)  # Use the ligand SMILEs to generate molecular properties
 
-        classify = False
         for instance in ExecEnv.modelInstances:
             if instance.model_postfix() == ExecEnv.args.classifyType:
                 instance.classify(prop_obj.train, prop_obj.test)
-                classify =True
-
-        if not classify:
-            ExecEnv.log.warning("No classification model found for prefix: %s", ExecEnv.args.classifyType)
-            ExecEnv.log.warning('Use the "--model" flag to see the available classification models.')
 
         ExecEnv.log.info("Command Line: %s", ExecEnv.cmdLine)
         ExecEnv.log.info("Elapsed seconds CPU time %f (all processors, may exceed clock time, assumes no GPU)."

@@ -26,7 +26,8 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 from six import with_metaclass
 
 
-from OSMBase import OSMBaseModel, ModelMetaClass  # The virtual model class.
+from OSMBase import ModelMetaClass  # The virtual model class.
+from OSMRegression import OSMRegression  # Display and save regression results.
 
 
 # This is a stub object that can be used as a template to create new OSM classifiers.
@@ -34,9 +35,9 @@ from OSMBase import OSMBaseModel, ModelMetaClass  # The virtual model class.
 # 2. Redefine the member functions below.
 
 
-class OSMTemplateModel(with_metaclass(ModelMetaClass, OSMBaseModel)):   # Edit this and change the class name
+class OSMTemplateModel(with_metaclass(ModelMetaClass, OSMRegression)):   # Edit this and change the class name
 # If you inherit from a class that is a subclass of OSMBaseModel then change the base class name.
-# For example, if the base class is "OSMMYBase" then change to "with_metaclass(ModelMetaClass, OSMMyBase)".
+# For example, if this classification is by regression then change to "with_metaclass(ModelMetaClass, OSMRegression".
 
     def __init__(self, args, log):
         super(OSMTemplateModel, self).__init__(args, log)     #Edit this and change the class name.

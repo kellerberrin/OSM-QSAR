@@ -42,14 +42,15 @@ from keras.optimizers import SGD
 from rdkit import Chem
 from rdkit.Chem.Draw import SimilarityMaps
 
-from OSMBase import OSMBaseModel, ModelMetaClass  # The virtual model class.
+from OSMBase import ModelMetaClass  # The virtual model class.
+from OSMRegression import OSMRegression  # Display and save regression results.
 
 
 # ===============================================================================
 # Base class for the Keras neural network classifiers.
 # ===============================================================================
 
-class KerasClassifier(OSMBaseModel):
+class KerasClassifier(OSMRegression):
 
     def __init__(self, args, log):
         super(KerasClassifier, self).__init__(args, log)
@@ -169,7 +170,7 @@ class SequentialModel(with_metaclass(ModelMetaClass, KerasClassifier)):
                                                                   get_fingerprint,
                                                                   lambda x: get_probability(x, model.predict),
                                                                   colorMap=cm.bwr)
-            graph_file_name = data["ID"][idx] + "_" + self.model_postfix() + ".png"
+            graph_file_name = data["ID"][idx] + "_sim_" + self.model_postfix() + ".png"
             graph_path_name = os.path.join(self.args.graphicsDirectory, graph_file_name)
             fig.savefig(graph_path_name, bbox_inches="tight")
             plt.close(fig)  # release memory
@@ -266,7 +267,7 @@ class ModifiedSequential(with_metaclass(ModelMetaClass, KerasClassifier)):
                                                                   get_fingerprint,
                                                                   lambda x: get_probability(x, model.predict),
                                                                   colorMap=cm.bwr)
-            graph_file_name = data["ID"][idx] + "_" + self.model_postfix() + ".png"
+            graph_file_name = data["ID"][idx] + "_sim_" + self.model_postfix() + ".png"
             graph_path_name = os.path.join(self.args.graphicsDirectory, graph_file_name)
             fig.savefig(graph_path_name, bbox_inches="tight")
             plt.close(fig) # release memory

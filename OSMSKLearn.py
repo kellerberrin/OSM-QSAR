@@ -47,6 +47,8 @@ from rdkit.Chem.Draw import SimilarityMaps
 from OSMBase import ModelMetaClass  # The virtual model class.
 from OSMRegression import OSMRegression  # Display and save regression results.
 from OSMClassify import OSMClassification  # Display and save classifier results.
+from OSMUtility import OSMUtility
+
 
 # A grab-bag of ML techniques implemented in SKLearn.
 
@@ -70,13 +72,13 @@ class OSMSKLearnSVMR(with_metaclass(ModelMetaClass, OSMRegression)):
         return "svmr"
 
     def model_description(self):
-        return ("Implements the Support Vector Machine (SVM) Classifier defined in the SKLearn modules.\n"
-                " This SVM (postfix svmr) is configured as a regression classifier."
+        return ("Implements the Support Vector Machine (SVM) Regression defined in the SKLearn modules.\n"
+                " This SVM (postfix svmr) is configured as a regression classifier.\n"
                 " For more information, Google SKLearn and read the documentation.\n")
 
 
     def model_define(self):
-        return svm.SVR(kernel='rbf', C=1e3, gamma=0.00001)
+        return svm.SVR(kernel=str("rbf"), C=1e3, gamma=0.00001)
 
 
     def model_train(self, model, train):
@@ -87,7 +89,9 @@ class OSMSKLearnSVMR(with_metaclass(ModelMetaClass, OSMRegression)):
         self.log.warn("%s model does not save to a model file, a new model was created", self.model_name())
         return self.model_define()
 
-    def model_write(self, model, file_name): pass
+    def model_write(self, model, file_name):
+        self.log.warn("%s model write function not defined.", self.model_name())
+        return
 
     def model_prediction(self, model, data):
         prediction = model.predict(data["MORGAN2048"])
@@ -153,21 +157,22 @@ class OSMSKLearnSVMC(with_metaclass(ModelMetaClass, OSMClassification)):
     # These functions need to be re-defined in all classifier model classes.
 
     def model_name(self):
-        return "Support Vector Machine (SVM), Classifier"  # Model name string.
+        return "Support Vector Machine (SVM) Classifier"  # Model name string.
 
     def model_postfix(self):  # Must be unique for each model.
         return "svmc"
 
     def model_description(self):
         return ("Implements the Support Vector Machine (SVM) Classifier defined in the SKLearn modules.\n"
-                " This SVM (postfix svmc) is configured as a label classifier."
+                " This SVM (postfix svmc) is configured as a label classifier.\n"
                 " For more information, Google SKLearn and read the documentation.\n")
 
     def model_define(self):
-        return OneVsRestClassifier(svm.SVC(kernel='rbf', C=1e3, gamma=0.00001, probability=True))
+        return OneVsRestClassifier(svm.SVC(kernel=str("rbf"), probability=True, C=1e3, gamma=0.00001))
+#        return svm.SVC(probability=True)
 
-    def model_train(self, model, train):
-        model.fit(train["MORGAN2048"], self.model_classify_pEC50(train["pEC50"])) # convert to labels, then train.
+    def model_train(self, model, train): # convert to one hot, then train.
+        model.fit(train["MORGAN2048"], OSMUtility.data_classify(train["pEC50"], self.args.activeNmols))
 
     # should return a model, can just return model_define() if there is no model file.
     def model_read(self, file_name):
@@ -175,11 +180,16 @@ class OSMSKLearnSVMC(with_metaclass(ModelMetaClass, OSMClassification)):
         return self.model_define()
 
     def model_write(self, model, file_name):
-        pass
+        self.log.warn("%s model write function not defined.", self.model_name())
+        return
 
-    def model_prediction(self, model, data):
+    def model_prediction(self, model, data):  #predictions and actual are returned as one hot vectors.
         prediction = model.predict(data["MORGAN2048"])
-        return {"prediction": prediction, "actual": self.model_classify_pEC50(data["pEC50"])} #Convert to labels.
+        return {"prediction": prediction, "actual": OSMUtility.data_classify(data["pEC50"], self.args.activeNmols) }
+
+    def model_probability(self, model, data):  # probabilities are returned as a list of lists.
+        probability = model.predict_proba(data["MORGAN2048"])
+        return {"probability": probability }
 
 
     ######################################################################################################
@@ -207,7 +217,7 @@ class OSMSKLearnSVMC(with_metaclass(ModelMetaClass, OSMClassification)):
             shape = []
             shape.append(int_list)
             fp_floats = numpy.array(shape, dtype=float)
-            active_prob = prob_func(fp_floats)[0]  # returns an "active" probability (first element of the prob array).
+            active_prob = prob_func(fp_floats)[0][0]  # returns an "active" probability (first element of the prob array).
             return active_prob
 
         # Ensure that we are using 2048 bit morgan fingerprints.

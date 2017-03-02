@@ -24,13 +24,12 @@
 #
 from __future__ import absolute_import, division, print_function, unicode_literals
 
-from OSMBase import OSMBaseModel
-
 import time
-
 import math
 import scipy.stats as st
 
+from OSMBase import OSMBaseModel
+from OSMUtility import OSMUtility
 
 # ============================================================================
 # The Regression Results Presentation Object.
@@ -53,10 +52,22 @@ class OSMRegression(OSMBaseModel):
 #
 #####################################################################################
 
+    def model_classification_results(self, model, train, test):
+        self.train_predictions = self.model_prediction(model,train)  # Returns a dict. with "prediction" and "actual"
+        self.train_stats = self.model_accuracy(self.train_predictions)  # Returns a dictionary of accuracy tests.
+
+        self.test_predictions = self.model_prediction(model, test)
+        self.test_stats = self.model_accuracy(self.test_predictions)
+        # Send statistics to the console and log file.
+        self.model_log_statistics(model, train, test)
+        # Generate graphics (only if the virtual function defined at model level).
+        self.model_graphics(model, train, test)
+        # Append statistics to the stats file.
+        self.model_write_statistics(model, train, test)
 
     def model_log_statistics(self, model, train, test):
         self.log_train_statistics(model, train)
-        self.log_test_statistics(model, train)
+        self.log_test_statistics(model, test)
 
     def model_accuracy(self, predictions):
         predict = predictions["prediction"]
@@ -80,8 +91,8 @@ class OSMRegression(OSMBaseModel):
 
         #  Active / Inactive classifications
 
-        predict_active = self.model_classify_pEC50(predict)
-        actual_active = self.model_classify_pEC50(actual)
+        predict_active = OSMUtility.data_text(predict, self.args.activeNmols)
+        actual_active = OSMUtility.data_text(actual, self.args.activeNmols)
 
         # generate Kendel rank correlation coefficient
 
@@ -95,7 +106,6 @@ class OSMRegression(OSMBaseModel):
         spearman["p-value"] = p_value
 
         # Return the model analysis statistics in a dictionary.
-
         return {"MUE": MUE, "RMSE": RMSE, "predict_ranks": predict_ranks,
                 "actual_ranks": actual_ranks, "predict_active": predict_active,
                 "actual_active": actual_active, "kendall": kendall, "spearman": spearman}

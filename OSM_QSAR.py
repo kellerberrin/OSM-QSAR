@@ -67,6 +67,7 @@ class ExecEnv(object):
         console_log_format = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
         ExecEnv.log = self.setup_logging(console_log_format)
 
+
         # Create the model instances - ***careful***, args are not yet defined.
         # Do not perform any classifications here.
         # The instances should only generate postfixes, descriptions and model names.
@@ -86,9 +87,9 @@ class ExecEnv(object):
         classify_help += 'For more information on current models specify the "--model" flag.'
 
         # Parse the runtime args
-
         parser = argparse.ArgumentParser(
             description="OSM_QSAR. Classification of OSM ligands using machine learning techniques.")
+
         # --dir
         parser.add_argument("--dir", dest="workDirectory", default="./Work/",
                             help=('The work directory where log files and data files are found.'
@@ -110,15 +111,15 @@ class ExecEnv(object):
         parser.add_argument("--load", dest="loadFilename", default="noload",
                             help=("Loads the saved model and generates statistics and graphics but does no "
                                   " further training."
-                                  " This file is always located in the model postfix subdirectory of the Work"
+                                  " This file is always located in the model <postfix> subdirectory of the Work"
                                   ' directory. For example, specifying "mymodel.mdl"'
-                                  ' loads "./<WorkDir>/postfix/mymodel.mdl".'))
+                                  ' loads "./<WorkDir>/<postfix>/mymodel.mdl".'))
         # --retrain
         parser.add_argument("--retrain", dest="retrainFilename", default="noretrain",
                             help=("Loads the saved model, retrains and generates statistics and graphics."
-                                  " This file is always located in the model postfix subdirectory of the Work"
+                                  " This file is always located in the model <postfix> subdirectory of the Work"
                                   ' directory. For example, specifying "mymodel.mdl"'
-                                  ' loads "./<WorkDir>/postfix/mymodel.mdl".'))
+                                  ' loads "./<WorkDir>/<postfix>/mymodel.mdl".'))
         # --save
         parser.add_argument("--save", dest="saveFilename", default="OSMClassifier.mdl",
                             help=('File name to save the model (default "OSMClassifier.mdl").'
@@ -128,17 +129,29 @@ class ExecEnv(object):
                                   ' The postfix directory is created if it does not exist.'))
         # --stats
         parser.add_argument("--stats", dest="statsFilename", default="OSMStatistics.csv",
-                            help=('File to append the model statistics (default "OSMStatistics").'
-                                  ' The statistics file is always saved to the model postfix subdirectory.'
-                                  ' For example, if this flag is not specified the model is saved to:'
-                                  ' "./<WorkDir>/postfix/OSMStatistics.csv".'
-                                  ' The postfix directory is created if it does not exist.'))
-        # --newstats
+                            help=('File to append the test and train model statistics (default "OSMStatistics").'
+                                  ' The statistics file is always saved to a subdirectory the model <postfix>'
+                                  ' directory. Test data statistics are always appended to the specified statisitcs'
+                                  ' file in the "./<WorkDir>/<postfix>/test/". directory.'
+                                  ' If the "--extend" flag is specified then training data statistics are appended'
+                                  ' to the specified statistics file in the "./<WorkDir>/<postfix>/train" directory.'
+                                  ' The postfix directory and the "test" and "train" subdirectories are created'
+                                  ' if they do not exist. The statistics file(s) are created if they do not exist.'))
+        # --extend
+        parser.add_argument("--extend", dest="extendFlag", action="store_true",
+                            help=(' The "--extend" flag generates training data statistics and graphics.'
+                                  ' Training data statistics are appended to the statistics file in the'
+                                  ' "./<WorkDir>/<postfix>/train" directory.'
+                                  ' In addition, training data graphics files are deposited to the same directory.'
+                                  ' The directory is created is it does not exist. The statistics file is created'
+                                  ' if it does not exist.'
+                                  ' Warning - the "--extend" flag may substantially increase OSM_QSAR runtime.'))
+
+        # --clean
         parser.add_argument("--clean", dest="cleanFlag", action="store_true",
-                            help=('Delete all files in the model postfix directory before OSM_QSAR executes.'
-                                  " The directory cleaned is the same directory that the model is being saved."
-                                  ' This directory is always"./<WorkDir>/postfix/".'
-                                  ' The "--clean" flag cannot be used with the "--load" or "--retrain" flags.'))
+                            help=('Deletes all files in the "test" and "train" subdirectories of the model '
+                                  ' <postfix> directory before OSM_QSAR executes.'
+                                  ' The model files in the <postfix> directory are not deleted.'))
         # --log
         parser.add_argument("--log", dest="logFilename", default="OSM_QSAR.log",
                             help=('Log file. Appends the log to any existing logs (default "OSM_QSAR.log").'
@@ -159,8 +172,8 @@ class ExecEnv(object):
                                   ' and classifications can be specified. For example: "active : 200, partial : 350,'
                                   ' ainactive : 600, binactive : 1000" defines 5 classifications and thresholds.'
                                   ' "inactive" is always implied and in the example will be any ligand with an'
-                                  ' EC50 > 1000 nMol. These thresholds are used to generate model ROC and AUC'
-                                  ' statistics and the ROC graph.'))
+                                  ' EC50 > 1000 nMol. These thresholds are used to specify the potency classes'
+                                  ' used by classification models.'))
         # --epoch
         parser.add_argument("--epoch", dest="epoch", default=-1, type=int,
                             help='The number of training epochs (iterations). Ignored if not valid for model.')

@@ -24,7 +24,6 @@
 #
 from __future__ import absolute_import, division, print_function, unicode_literals
 
-from OSMBase import OSMBaseModel
 
 import csv
 import time
@@ -32,7 +31,9 @@ import time
 import math
 import scipy.stats as st
 from sklearn.metrics import auc
-from sklearn.preprocessing import label_binarize
+
+from OSMBase import OSMBaseModel
+from OSMUtility import OSMUtility
 
 # ============================================================================
 # The Classification Results Presentation Object.
@@ -45,7 +46,6 @@ class OSMClassification(OSMBaseModel):
     def __init__(self, args, log):
         super(OSMClassification, self).__init__(args, log)
 
-
         # Shallow copies of the runtime environment.
         self.log = log
         self.args = args
@@ -56,25 +56,46 @@ class OSMClassification(OSMBaseModel):
 #
 #####################################################################################
 
+    def model_classification_results(self, model, train, test):
+        self.train_predictions = self.model_prediction(model,train)  # Returns a dict. with "prediction" and "actual"
+        self.train_probability = self.model_probability(model,train)  # Returns a dict. with "probability"
+        self.train_stats = self.model_accuracy(self.train_predictions, self.train_probability)  # dictionary of stats
+
+        self.test_predictions = self.model_prediction(model, test)  # Returns a dict. with "prediction" and "actual"
+        self.test_probability = self.model_probability(model,test)  # Returns a dict. with "probability"
+        self.test_stats = self.model_accuracy(self.test_predictions, self.test_probability)  # dictionary of stats
+        # Send statistics to the console and log file.
+        self.model_log_statistics(model, train, test)
+        # Generate graphics (only if the virtual function defined at model level).
+        self.model_graphics(model, train, test)
+        # Append statistics to the stats file.
+        self.model_write_statistics(model, train, test)
+
 
     def model_log_statistics(self, model, train, test):
-#        self.log_train_statistics(model, train)
+        self.log_train_statistics(model, train)
         self.log_test_statistics(model, test)
 
-    def model_accuracy(self, predictions):
+    def model_accuracy(self, predictions, probability):
         predict = predictions["prediction"]
         actual = predictions["actual"]
+        probabilities = probability["probability"]
+        inv_probability = [1-x[0] for x in probabilities]  # only interested in the first column ("active")
+        # Sort rankings.
+        probability_ranks = st.rankdata(inv_probability, method='average')
 
-        print("actual", actual, "prediction", predictions)
+#        fpr, tpr, thresholds = roc_curve(y[test], probas_[:, 1])
+#        auc_stat = auc(predict, actual)
+        auc_stat = 0
 
-        auc_stat = auc(predict, actual)
+        actual_text = OSMUtility.one_hot_text(actual, self.args.activeNmols)
+        predict_text = OSMUtility.probability_text(probabilities, self.args.activeNmols)
 
         # Return the model analysis statistics in a dictionary.
-
-        return {"AUC": auc_stat, "actual": actual, "predict" : predict}
+        return {"AUC": auc_stat, "actual": actual, "predict" : predict, "prob_rank" : probability_ranks,
+                "actual_text" : actual_text, "predict_text" : predict_text }
 
     def model_write_statistics(self, model, train, test):
-
         # Open the statistics file and append the model results statistics.
 
         try:
@@ -93,14 +114,23 @@ class OSMClassification(OSMBaseModel):
                 stats_file.write(line)
                 line = "AUC, {}\n".format(self.test_stats["AUC"])
                 stats_file.write(line)
-                line = "ID, Actual_Class, Pred._Class, SMILE\n"
+                line = "ID, Actual_Class, Pred_Class "
+                classes = OSMUtility.enumerate_classes(self.args.activeNmols)
+                for cls in classes:
+                    line += ", Prob_" + cls
+                line += ", SMILE\n"
                 stats_file.write(line)
 
                 for idx in range(len(test["ID"])):
-                    line = "{}, {}, {}, {}\n".format(test["ID"][idx],
-                                                     self.test_stats["actual"][idx],
-                                                     self.test_stats["predict"][idx],
-                                                     test["SMILE"][idx])
+                    line = "{}, {}, {}".format(test["ID"][idx],
+                                                     self.test_stats["actual_text"][idx],
+                                                     self.test_stats["predict_text"][idx])
+
+                    for cls_idx in range(self.test_probability["probability"][idx].size):
+                        line += ", {}".format(self.test_probability["probability"][idx][cls_idx])
+
+                    line += ", {}\n".format(test["SMILE"][idx])
+
                     stats_file.write(line)
 
 
@@ -110,8 +140,6 @@ class OSMClassification(OSMBaseModel):
                            self.args.statsFilename)
 
 
-    def model_binary_labels(self, data):
-        return label_binarize(self.model_classify_pEC50(data), classes=self.model_enumerate_classes())
 
 
 #####################################################################################
@@ -130,11 +158,13 @@ class OSMClassification(OSMBaseModel):
         """Display all the calculated statistics for each model; run"""
 
         self.log.info("Test Compounds Area Under Curve: %f", self.test_stats["AUC"])
-        self.log.info("ID, Actual Class, Pred. Class")
+        self.log.info("ID, Actual Class, Pred. Class, Prob. Active, Prob. Rank")
         self.log.info("===================================================================================")
 
         for idx in range(len(data["ID"])):
-            self.log.info("%s, %s, %s", data["ID"][idx],
-                          self.test_stats["actual"][idx],
-                          self.test_stats["predict"][idx])
+            self.log.info("%s, %s, %s, %f, %d", data["ID"][idx],
+                          self.test_stats["actual_text"][idx],
+                          self.test_stats["predict_text"][idx],
+                          self.test_probability["probability"][idx][0],
+                          self.test_stats["prob_rank"][idx])
 

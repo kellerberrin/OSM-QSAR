@@ -102,6 +102,7 @@ class OSMBaseModel(object):
         self.log = log
         self.args = args
 
+
 # ============================================================================        
 # These functions must be defined in derived classes.
 # See "OSMSequential.py" or "OSMTemplate.py".
@@ -143,11 +144,12 @@ class OSMBaseModel(object):
         # Train the model.
         if self.args.retrainFilename != "noretrain" or self.args.loadFilename == "noload":
             self.fit_model(self.model, train)
-            self.save_model_file(self.model, self.args.saveFilename)
+            if self.model_can_write():
+                self.save_model_file(self.model, self.args.saveFilename)
 
         # Write results to log file, generate graphics, generate statistics file.
         # This is a virtual function and calls either OSMRegression or OSMClassifier depending on classification type.
-        self.classification_results(self.model, train,  test)
+        self.model_classification_results(self.model, train,  test)
 
 
     def save_model_file(self, model, save_file):
@@ -178,18 +180,6 @@ class OSMBaseModel(object):
         self.model_train(model, train)
         self.log.info("End Training %s Model", self.model_name())
 
-    def classification_results(self, model, train, test):
-        self.train_predictions = self.model_prediction(model,train)  # Returns a dict. with "prediction" and "actual"
-     #   self.train_stats = self.model_accuracy(self.train_predictions)  # Returns a dictionary of accuracy tests.
-
-        self.test_predictions = self.model_prediction(model, test)
-        self.test_stats = self.model_accuracy(self.test_predictions)
-        # Send statistics to the console and log file.
-        self.model_log_statistics(model, train, test)
-        # Generate graphics (only if the virtual function defined at model level).
-        self.model_graphics(model, train, test)
-        # Append statistics to the stats file.
-        self.model_write_statistics(model, train, test)
 
     #####################################################################################
     #
@@ -201,42 +191,9 @@ class OSMBaseModel(object):
     def model_update_args(self, args):
         self.args = args
 
-    # Default for any model without any graphics functions.
+    # Default for any model without graphics functions.
     def model_graphics(self, model, train, test): pass
 
-    # Accepts an list (array) of pEC50 values and returns a list (array) of classification labels.
-    #  Active / Inactive args.activeNmols is a list (array) of pEC50 potency sorted tuples [(potency, "classify"), ...]
-    def model_classify_pEC50(self, value_array):
-
-        class_array = []
-        classes = self.args.activeNmols
-        for x in value_array:
-
-            if x <= classes[0][0]:
-                class_str = classes[0][1]
-            else:
-                class_str = "inactive"
-
-            if len(classes) > 1:
-                for idx in range(len(classes) - 1):
-                    if x > classes[idx][0] and x <= classes[idx + 1][0]:
-                        class_str = classes[idx + 1][1]
-
-            class_array.append(class_str)
-
-        return class_array
-
-    # Returns a list of defined potency classification classes, including the implied "inactive" class.
-    def model_enumerate_classes(self):
-
-        class_array = []
-        potency_classes = self.args.activeNmols
-
-        for potency_class in potency_classes:
-            class_array.append(potency_class[1])
-
-        class_array.append("inactive")
-
-        return class_array
-
-
+    # Is the model I/O defined? (True by default)
+    def model_can_write(self):
+        return True

@@ -187,6 +187,12 @@ class ExecEnv(object):
         ExecEnv.args = parser.parse_args()
 
 
+        # List the available models and exit.
+
+        if ExecEnv.args.modelDescriptions:
+            ExecEnv.log.info(ExecEnv.list_available_models())
+            sys.exit()
+
         # Check that the work directory exists and terminate if not.
 
         if not os.path.isdir(ExecEnv.args.workDirectory):
@@ -209,52 +215,50 @@ class ExecEnv(object):
             ExecEnv.log.fatal("OSM_QSAR cannot continue.")
             sys.exit()
 
-        # Check to see if the postfix directory exists and create if necessary.
+        # Check to see if the postfix directory and subdirectories exist and create if necessary.
 
-        postfix_directory = os.path.join(ExecEnv.args.workDirectory,ExecEnv.args.classifyType)
-        if not os.path.isdir(postfix_directory):
-            ExecEnv.log.info('The model postfix directory: "%s" does not exist. Creating it.', postfix_directory)
-            try:
+        postfix_directory = os.path.join(ExecEnv.args.workDirectory, ExecEnv.args.classifyType)
+        test_directory = os.path.join(postfix_directory, "test")
+        train_directory = os.path.join(postfix_directory, "train")
+        # Append the postfix directory to the environment file names.
+        ExecEnv.args.graphicsDirectory = postfix_directory # ********remove this line.
+        ExecEnv.args.postfixDirectory = postfix_directory
+        ExecEnv.args.testDirectory = test_directory
+        ExecEnv.args.trainDirectory = train_directory
+
+        try:
+            if not os.path.isdir(postfix_directory):
+                ExecEnv.log.info('The model <postfix> directory: "%s" does not exist. Creating it.', postfix_directory)
                 os.makedirs(postfix_directory)
-            except OSError:
-                ExecEnv.log.error("Could not create model postfix directory: %s.", postfix_directory)
-                ExecEnv.log.error("Check the work directory: %s permissions.", ExecEnv.args.workDirectory)
-                ExecEnv.log.fatal("OSM_QSAR cannot continue.")
-                sys.exit()
-
-        # Check that the "--clean" flag is not specified with "--load" or "--retrain".
-
-        if (ExecEnv.args.cleanFlag and
-           (ExecEnv.args.loadFilename != "noload" or ExecEnv.args.retrainFilename != "noretrain")):
-
-            ExecEnv.log.error('The "--clean" flag cannot be used with the "--load" or "--retrain" flags.')
+            if not os.path.isdir(test_directory):
+                ExecEnv.log.info('The model <postfix> directory: "%s" does not exist. Creating it.', test_directory)
+                os.makedirs(test_directory)
+            if not os.path.isdir(train_directory):
+                ExecEnv.log.info('The model <postfix> directory: "%s" does not exist. Creating it.', train_directory)
+                os.makedirs(train_directory)
+        except OSError:
+            ExecEnv.log.error("Could not create directory")
+            ExecEnv.log.error("Check the work directory: %s permissions.", ExecEnv.args.workDirectory)
             ExecEnv.log.fatal("OSM_QSAR cannot continue.")
             sys.exit()
 
-        elif ExecEnv.args.cleanFlag:
+        # clean the postfix subdirectories if the "--clean" flag is specified..
 
-        # clean the postfix directory if the "--clean" flag is specified..
-
-            for file_name in os.listdir(postfix_directory):
-                file_path = os.path.join(postfix_directory, file_name)
-                try:
-                    if os.path.isfile(file_path):
-                        os.unlink(file_path)
-                except OSError:
-                    ExecEnv.log.error('Specified the "--clean" flag. Could not delete file: %s.', file_path)
-                    ExecEnv.log.error("Check directory and file permissions.")
-                    ExecEnv.log.fatal("OSM_QSAR cannot continue.")
-                    sys.exit()
-
-        # List the available models and exit.
-
-        if ExecEnv.args.modelDescriptions:
-            ExecEnv.log.info(ExecEnv.list_available_models())
+        try:
+            for file_name in os.listdir(test_directory):
+                file_path = os.path.join(test_directory, file_name)
+                if os.path.isfile(file_path):
+                    os.unlink(file_path)
+            for file_name in os.listdir(train_directory):
+                file_path = os.path.join(train_directory, file_name)
+                if os.path.isfile(file_path):
+                    os.unlink(file_path)
+        except OSError:
+            ExecEnv.log.error('Specified the "--clean" flag. Could not delete file(s)')
+            ExecEnv.log.error("Check <postfix> subdirectories and file permissions.")
+            ExecEnv.log.fatal("OSM_QSAR cannot continue.")
             sys.exit()
 
-        # Append the postfix directory to the environment file names.
-
-        ExecEnv.args.graphicsDirectory = postfix_directory
 
         ExecEnv.args.dataFilename = os.path.join(ExecEnv.args.workDirectory, ExecEnv.args.dataFilename)
 
@@ -265,7 +269,6 @@ class ExecEnv(object):
             ExecEnv.args.retrainFilename = os.path.join(postfix_directory,ExecEnv.args.retrainFilename)
 
         ExecEnv.args.saveFilename = os.path.join(postfix_directory,ExecEnv.args.saveFilename)
-        ExecEnv.args.statsFilename = os.path.join(postfix_directory,ExecEnv.args.statsFilename)
 
         ExecEnv.args.logFilename = os.path.join(ExecEnv.args.workDirectory,ExecEnv.args.logFilename)
 

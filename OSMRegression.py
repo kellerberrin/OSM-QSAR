@@ -24,8 +24,10 @@
 #
 from __future__ import absolute_import, division, print_function, unicode_literals
 
+import os
 import time
 import math
+
 import scipy.stats as st
 
 from OSMBase import OSMBaseModel
@@ -62,12 +64,16 @@ class OSMRegression(OSMBaseModel):
         self.model_log_statistics(model, train, test)
         # Generate graphics (only if the virtual function defined at model level).
         self.model_graphics(model, train, test)
-        # Append statistics to the stats file.
+        # Append statistics to the stats files.
         self.model_write_statistics(model, train, test)
 
     def model_log_statistics(self, model, train, test):
         self.log_train_statistics(model, train)
         self.log_test_statistics(model, test)
+
+    def model_write_statistics(self, model, train, test):
+        self.write_statistics(model, train, self.train_stats, self.train_predictions, self.args.trainDirectory)
+        self.write_statistics(model, test, self.test_stats, self.test_predictions, self.args.testDirectory)
 
     def model_accuracy(self, predictions):
         predict = predictions["prediction"]
@@ -110,53 +116,6 @@ class OSMRegression(OSMBaseModel):
                 "actual_ranks": actual_ranks, "predict_active": predict_active,
                 "actual_active": actual_active, "kendall": kendall, "spearman": spearman}
 
-    def model_write_statistics(self, model, train, test):
-
-        # Open the statistics file and append the model results statistics.
-
-        try:
-
-            with open(self.args.statsFilename, 'a') as stats_file:
-
-                line = "****************,Classification,******************\n"
-                stats_file.write(line)
-                line = "Model, {}\n".format(self.model_name())
-                stats_file.write(line)
-                line = "Runtime, {}\n".format(time.asctime(time.localtime(time.time())))
-                stats_file.write(line)
-                line = "CPUtime, {}\n".format(time.clock())
-                stats_file.write(line)
-                line = "++++++++++++++++,Test Statistics,++++++++++++++++\n"
-                stats_file.write(line)
-                line = "MUE, {}\n".format(self.test_stats["MUE"])
-                stats_file.write(line)
-                line = "RMSE, {}\n".format(self.test_stats["RMSE"])
-                stats_file.write(line)
-                line = "Kendall, {}, {}\n".format(self.test_stats["kendall"]["tau"],
-                                                  self.test_stats["kendall"]["p-value"])
-                stats_file.write(line)
-                line = "Spearman, {}, {}\n".format(self.test_stats["spearman"]["rho"],
-                                                   self.test_stats["spearman"]["p-value"])
-                stats_file.write(line)
-                line = "ID, Rank, Pred_Rank, Tested_pEC50, Pred_pEC50, Tested_Active, Pred_Active, SMILE\n"
-                stats_file.write(line)
-
-                for idx in range(len(test["ID"])):
-                    line = "{}, {}, {}, {}, {}, {}, {}, {}\n".format(test["ID"][idx],
-                                                                     self.test_stats["actual_ranks"][idx],
-                                                                     self.test_stats["predict_ranks"][idx],
-                                                                     self.test_predictions["actual"][idx],
-                                                                     self.test_predictions["prediction"][idx],
-                                                                     self.test_stats["actual_active"][idx],
-                                                                     self.test_stats["predict_active"][idx],
-                                                                     test["SMILE"][idx])
-                    stats_file.write(line)
-
-
-
-        except IOError:
-            self.log.error("Problem writing to statistics file %s, check path and permissions",
-                           self.args.statsFilename)
 
 
 #####################################################################################
@@ -197,6 +156,50 @@ class OSMRegression(OSMBaseModel):
                                                         self.test_stats["actual_active"][idx],
                                                         self.test_stats["predict_active"][idx]),
 
+    def write_statistics(self, model, data, statistics, predictions, directory):
+
+        # Open the statistics file and append the model results statistics.
+
+        stats_filename = os.path.join(directory, self.args.statsFilename)
+        try:
+
+            with open(stats_filename, 'a') as stats_file:
+
+                line = "****************,Classification,******************\n"
+                stats_file.write(line)
+                line = "Model, {}\n".format(self.model_name())
+                stats_file.write(line)
+                line = "Runtime, {}\n".format(time.asctime(time.localtime(time.time())))
+                stats_file.write(line)
+                line = "CPUtime, {}\n".format(time.clock())
+                stats_file.write(line)
+                line = "++++++++++++++++,Statistics,++++++++++++++++\n"
+                stats_file.write(line)
+                line = "MUE, {}\n".format(statistics["MUE"])
+                stats_file.write(line)
+                line = "RMSE, {}\n".format(statistics["RMSE"])
+                stats_file.write(line)
+                line = "Kendall, {}, {}\n".format(statistics["kendall"]["tau"],
+                                                  statistics["kendall"]["p-value"])
+                stats_file.write(line)
+                line = "Spearman, {}, {}\n".format(statistics["spearman"]["rho"],
+                                                   statistics["spearman"]["p-value"])
+                stats_file.write(line)
+                line = "ID, Rank, Pred_Rank, Tested_pEC50, Pred_pEC50, Tested_Active, Pred_Active, SMILE\n"
+                stats_file.write(line)
+
+                for idx in range(len(data["ID"])):
+                    line = "{}, {}, {}, {}, {}, {}, {}, {}\n".format(data["ID"][idx],
+                                                                     statistics["actual_ranks"][idx],
+                                                                     statistics["predict_ranks"][idx],
+                                                                     predictions["actual"][idx],
+                                                                     predictions["prediction"][idx],
+                                                                     statistics["actual_active"][idx],
+                                                                     statistics["predict_active"][idx],
+                                                                     data["SMILE"][idx])
+                    stats_file.write(line)
 
 
 
+        except IOError:
+            self.log.error("Problem writing to statistics file %s, check path and permissions", stats_filename)

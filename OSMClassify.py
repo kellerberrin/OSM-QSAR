@@ -25,7 +25,7 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
 
 
-import csv
+import os
 import time
 
 import math
@@ -76,13 +76,23 @@ class OSMClassification(OSMBaseModel):
         self.log_train_statistics(model, train)
         self.log_test_statistics(model, test)
 
+    def model_write_statistics(self, model, train, test):
+        self.write_statistics(model, train, self.train_stats,
+                              self.train_predictions,
+                              self.train_probability,
+                              self.args.trainDirectory)
+        self.write_statistics(model, test, self.test_stats,
+                              self.test_predictions,
+                              self.test_probability,
+                              self.args.testDirectory)
+
     def model_accuracy(self, predictions, probability):
         predict = predictions["prediction"]
         actual = predictions["actual"]
         probabilities = probability["probability"]
         inv_probability = [1-x[0] for x in probabilities]  # only interested in the first column ("active")
         # Sort rankings.
-        probability_ranks = st.rankdata(inv_probability, method='average')
+        probability_ranks = st.rankdata(inv_probability, method="average")
 
 #        fpr, tpr, thresholds = roc_curve(y[test], probas_[:, 1])
 #        auc_stat = auc(predict, actual)
@@ -95,51 +105,6 @@ class OSMClassification(OSMBaseModel):
         return {"AUC": auc_stat, "actual": actual, "predict" : predict, "prob_rank" : probability_ranks,
                 "actual_text" : actual_text, "predict_text" : predict_text }
 
-    def model_write_statistics(self, model, train, test):
-        # Open the statistics file and append the model results statistics.
-
-        try:
-
-            with open(self.args.statsFilename, 'a') as stats_file:
-
-                line = "****************,Classification,******************\n"
-                stats_file.write(line)
-                line = "Model, {}\n".format(self.model_name())
-                stats_file.write(line)
-                line = "Runtime, {}\n".format(time.asctime(time.localtime(time.time())))
-                stats_file.write(line)
-                line = "CPUtime, {}\n".format(time.clock())
-                stats_file.write(line)
-                line = "++++++++++++++++,Test Statistics,++++++++++++++++\n"
-                stats_file.write(line)
-                line = "AUC, {}\n".format(self.test_stats["AUC"])
-                stats_file.write(line)
-                line = "ID, Actual_Class, Pred_Class "
-                classes = OSMUtility.enumerate_classes(self.args.activeNmols)
-                for cls in classes:
-                    line += ", Prob_" + cls
-                line += ", SMILE\n"
-                stats_file.write(line)
-
-                for idx in range(len(test["ID"])):
-                    line = "{}, {}, {}".format(test["ID"][idx],
-                                                     self.test_stats["actual_text"][idx],
-                                                     self.test_stats["predict_text"][idx])
-
-                    for cls_idx in range(self.test_probability["probability"][idx].size):
-                        line += ", {}".format(self.test_probability["probability"][idx][cls_idx])
-
-                    line += ", {}\n".format(test["SMILE"][idx])
-
-                    stats_file.write(line)
-
-
-
-        except IOError:
-            self.log.error("Problem writing to statistics file %s, check path and permissions",
-                           self.args.statsFilename)
-
-
 
 
 #####################################################################################
@@ -147,7 +112,6 @@ class OSMClassification(OSMBaseModel):
 # Local member functions
 #
 #####################################################################################
-
 
     def log_train_statistics(self, model, train):
 
@@ -168,3 +132,44 @@ class OSMClassification(OSMBaseModel):
                           self.test_probability["probability"][idx][0],
                           self.test_stats["prob_rank"][idx])
 
+    # Open the statistics file and append the model results statistics.
+    def write_statistics(self, model, data, statistics, predictions, probabilities, directory):
+
+        stats_filename = os.path.join(directory, self.args.statsFilename)
+        try:
+
+            with open(stats_filename, 'a') as stats_file:
+
+                line = "****************,Classification,******************\n"
+                stats_file.write(line)
+                line = "Model, {}\n".format(self.model_name())
+                stats_file.write(line)
+                line = "Runtime, {}\n".format(time.asctime(time.localtime(time.time())))
+                stats_file.write(line)
+                line = "CPUtime, {}\n".format(time.clock())
+                stats_file.write(line)
+                line = "++++++++++++++++,Test Statistics,++++++++++++++++\n"
+                stats_file.write(line)
+                line = "AUC, {}\n".format(statistics["AUC"])
+                stats_file.write(line)
+                line = "ID, Actual_Class, Pred_Class "
+                classes = OSMUtility.enumerate_classes(self.args.activeNmols)
+                for cls in classes:
+                    line += ", Prob_" + cls
+                line += ", SMILE\n"
+                stats_file.write(line)
+
+                for idx in range(len(data["ID"])):
+                    line = "{}, {}, {}".format(data["ID"][idx],
+                                                     statistics["actual_text"][idx],
+                                                     statistics["predict_text"][idx])
+
+                    for cls_idx in range(probabilities["probability"][idx].size):
+                        line += ", {}".format(probabilities["probability"][idx][cls_idx])
+
+                    line += ", {}\n".format(data["SMILE"][idx])
+
+                    stats_file.write(line)
+
+        except IOError:
+            self.log.error("Problem writing to statistics file %s, check path and permissions",stats_filename)

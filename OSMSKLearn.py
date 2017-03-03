@@ -26,6 +26,7 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 from six import with_metaclass
 
 import os
+import sys
 
 import numpy
 from matplotlib import cm
@@ -104,15 +105,17 @@ class OSMSKLearnSVMR(with_metaclass(ModelMetaClass, OSMRegression)):
 #
 ######################################################################################################
 
-
     def model_graphics(self, model, train, test):
-        self.model_similarity(model, test)      #Only generate similarity maps for the test data.
+        self.model_similarity(model, test, self.args.testDirectory)
+        if self.args.extendFlag:
+            self.model_similarity(model, train, self.args.trainDirectory)
 
 
 # Generate the png similarity diagrams for the test compounds.
-    def model_similarity(self, model, data):
+    def model_similarity(self, model, data, directory):
 
-        self.log.info("Generating Similarity Diagrams .......")
+        diagram_total = len(data["ID"])
+        self.log.info("Generating %d Similarity Diagrams in %s.......", diagram_total, directory)
 
         def get_probability(fp, prob_func):
             int_list = []
@@ -130,6 +133,7 @@ class OSMSKLearnSVMR(with_metaclass(ModelMetaClass, OSMRegression)):
         def get_fingerprint(mol, atom):
             return SimilarityMaps.GetMorganFingerprint(mol, atom, 2, 'bv', 2048)
 
+        diagram_count = 0
         for idx in range(len(data["SMILE"])):
             mol = Chem.MolFromSmiles(data["SMILE"][idx])
             fig, weight = SimilarityMaps.GetSimilarityMapForModel(mol,
@@ -137,10 +141,13 @@ class OSMSKLearnSVMR(with_metaclass(ModelMetaClass, OSMRegression)):
                                                                   lambda x: get_probability(x, model.predict),
                                                                   colorMap=cm.bwr)
             graph_file_name = data["ID"][idx] + "_sim_" + self.model_postfix() + ".png"
-            graph_path_name = os.path.join(self.args.graphicsDirectory, graph_file_name)
+            graph_path_name = os.path.join(directory, graph_file_name)
             fig.savefig(graph_path_name, bbox_inches="tight")
             plt.close(fig) # release memory
-
+            diagram_count += 1
+            progress_line = "Processing similarity diagram {}/{}\r".format(diagram_count, diagram_total)
+            sys.stdout.write(progress_line)
+            sys.stdout.flush()
 
 ######################################################################################################
 #
@@ -198,15 +205,16 @@ class OSMSKLearnSVMC(with_metaclass(ModelMetaClass, OSMClassification)):
     #
     ######################################################################################################
 
-
     def model_graphics(self, model, train, test):
-        self.model_similarity(model, test)  # Only generate similarity maps for the test data.
-#        self.model_ROC(model, test)
+        self.model_similarity(model, test, self.args.testDirectory)
+        if self.args.extendFlag:
+            self.model_similarity(model, train, self.args.trainDirectory)
 
     # Generate the png similarity diagrams for the test compounds.
-    def model_similarity(self, model, data):
+    def model_similarity(self, model, data, directory):
 
-        self.log.info("Generating Similarity Diagrams .......")
+        diagram_total = len(data["ID"])
+        self.log.info("Generating %d Similarity Diagrams in %s.......", diagram_total, directory)
 
         def get_probability(fp, prob_func):
             int_list = []
@@ -224,6 +232,7 @@ class OSMSKLearnSVMC(with_metaclass(ModelMetaClass, OSMClassification)):
         def get_fingerprint(mol, atom):
             return SimilarityMaps.GetMorganFingerprint(mol, atom, 2, 'bv', 2048)
 
+        diagram_count = 0
         for idx in range(len(data["SMILE"])):
             mol = Chem.MolFromSmiles(data["SMILE"][idx])
             fig, weight = SimilarityMaps.GetSimilarityMapForModel(mol,
@@ -231,10 +240,13 @@ class OSMSKLearnSVMC(with_metaclass(ModelMetaClass, OSMClassification)):
                                                                   lambda x: get_probability(x, model.predict_proba),
                                                                   colorMap=cm.bwr)
             graph_file_name = data["ID"][idx] + "_sim_" + self.model_postfix() + ".png"
-            graph_path_name = os.path.join(self.args.graphicsDirectory, graph_file_name)
+            graph_path_name = os.path.join(directory, graph_file_name)
             fig.savefig(graph_path_name, bbox_inches="tight")
             plt.close(fig)  # release memory
-
+            diagram_count += 1
+            progress_line = "Processing similarity diagram {}/{}\r".format(diagram_count, diagram_total)
+            sys.stdout.write(progress_line)
+            sys.stdout.flush()
 
     # Plot of a ROC curve for a specific class
 

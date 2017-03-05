@@ -11,13 +11,13 @@ This software currently resides in the GitHub repository:
 https://github.com/kellerberrin/OSM-QSAR
 
 OSM_QSAR software is designed to be a software toolkit to simplify the development of 
-ligand molecular screening and classification using machine learning techniques. 
+ligand molecular screening and classification using Machine Learning techniques. 
 User models are designed to "plug-in" to OSM_QSAR without further coding. 
 A neural network classifier can be specified and tested with 20 lines of python code. 
 All user specified models automatically have access to statistical and graphical analysis.
 See "OSMKeras.py" for an example neural network classifiers using the KERAS
-package. The source file "OSMTemplate.py" provides an empty template for researchers to
-specify new classification models.
+package. The source file "OSMTemplate.py" provides empty templates for researchers to
+specify new classification or regression models.
 
 The OSM_QSAR software was developed using Python 2.7. It has also been tested and is  
 compatible with a Python 3.5 environment.
@@ -90,8 +90,11 @@ Finally execute:
 (yourenvname) >python OSM_QSAR.py --epoch 1000 
 
 This executes the neural network classifier coded by Vito Spadavecchio (the default model "seq") 
-and generates a log file "OSM_QSAR.log", a statistics file "OSMStatistics_seq.csv" a
-model file "OSMClassify_seq.mdl" and various other files with the "_seq" filename postfix. 
+and generates a log file in ".Data/seq/OSM_QSAR.log" 
+(model directories are automatically created), statistics files in
+".Data/seq/test/OSMStatistics.csv" and ".Data/seq/train/OSMStatistics.csv",
+a model file ".Data/seq/OSMClassify.mdl" and various graphics files 
+in the ".Data/seq/test/" and ".Data/seq/train/" directories (requires "--extend"). 
 These file names and much else can be customized using
 optional command line arguments. These are explained in the usual way 
 (the python convention is --flag not -flag).
@@ -110,10 +113,10 @@ User models are designed to "plug-in" to OSM_QSAR without further coding.
 
 (yourenvname) >python OSM_QSAR.py --model
 
-Classify the OSM ligands using the models "mod", "svn" and "log" and generate 
+Classify the OSM ligands using ML models such "mod", "svmr" and "svmc" and generate 
 statistical and graphical output for these models.
 
-(yourenvname) >python OSM_QSAR.py --classify "mod, svn, log"
+(yourenvname) >python OSM_QSAR.py --classify "svmc"
 
 That's it! You are now up and running. Be sure to fork OSM_QSAR 
 and post any updated code on GitHub.
@@ -137,7 +140,7 @@ $source deactivate
 Install on Mac
 --------------
 
-A Mac installation has not yet been tested. But it is almost 
+A Mac installation has not yet been tested (I don't have a Mac). But it is almost 
 certainly the same as the Windows/Linux installation. 
 
 
@@ -145,8 +148,8 @@ Miscellany.
 -----------
 
 To install OSMClassify in a python 2.7 environment, create a virtual environment
-and proceed as above. In Anaconda you can have an arbitrary number of
-virtual environments.
+and proceed to install the various packages as above. In Anaconda you can have an arbitrary
+number of virtual environments.
 
 >conda create -n yourenvname python=2.7 anaconda
 
@@ -186,7 +189,7 @@ Finally, OSM_QSAR is software under development and may (will) contain bugs.
 If you encounter any bugs, see if you can re-produce the problem and then send me
 the details in an email to:
 
-james.duncan.mcculloch@gmail
+james.duncan.mcculloch@gmail.com
  
 Or alternatively, register an issue on GitHub.
 

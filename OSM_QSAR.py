@@ -33,20 +33,18 @@ import time
 
 # Import the various classification models.
 from OSMBase import get_model_instances
-from OSMProperties import Properties  # Generate ligand molecular properties.
+from OSMProperties import OSMGenerateData, OSMModelData  # Generate molecular properties.
 from OSMKeras import SequentialModel, ModifiedSequential
-from OSMTemplate import OSMTemplateModel
+from OSMTemplate import OSMRegressionTemplate
+from OSMTemplate import OSMClassificationTemplate
 from OSMSKLearn import OSMSKLearnSVMR
 
-
 __version__ = "0.1"
-
 
 # ===================================================================================================
 # A utility class to parse the program runtime arguments
 # and setup a logger to receive classification output.
 # ===================================================================================================
-
 
 class ExecEnv(object):
     """Utility class to setup the runtime environment and logging"""
@@ -93,11 +91,11 @@ class ExecEnv(object):
         # --dir
         parser.add_argument("--dir", dest="workDirectory", default="./Work/",
                             help=('The work directory where log files and data files are found.'
-                                  ' of this directory. Use a Linux style directory specification with trailing forward'
+                                  ' Use a Linux style directory specification with trailing forward'
                                   ' slash "/" (default "./Work/").'
                                   " Important - to run OSM_QSAR this directory must exist, it will not be created."
                                   ' Model specific files (models, statistics and graphics) are in the '
-                                  'subdirectories "/<WorkDir>/postfix/".'))
+                                  'subdirectories "/<WorkDir>/postfix/...".'))
 
         # --data
         parser.add_argument("--data", dest="dataFilename", default="OSMData.csv",
@@ -106,6 +104,28 @@ class ExecEnv(object):
                                  ' For example, if this flag is not specified then OSM_QSAR attempts to read the'
                                  ' data file at "/<WorkDir>/OSMData.csv".'
                                  " See the additional OSM_QSAR documentation for the format of this file."))
+
+        # --depend
+        parser.add_argument("--depend", dest="dependVar", default="default",
+                            help=('The regression or classifier dependent variable.'
+                                 " This variable must exist in the data dictionary. The variables in the data"
+                                 ' directory can be listed using the "--vars" flag. The default dependent variable'
+                                 ' for a regression model is "pIC50" (log10 IC50 potency in uMols). The default'
+                                 ' variable for a classifier model is "IC50_ACTIVITY".'))
+
+        # --indep
+        parser.add_argument("--indep", dest="indepList", default="default",
+                            help=('The regression or classifier independent variables.'
+                                 " Important - some models (NNs) will not accept this flag and will issue a warning."
+                                 " Specified variables must exist in the data dictionary. The variables in the data"
+                                 ' directory can be listed using the "--vars" flag. The independent variables are '
+                                 ' specified in a comma delimited list "Var1, Var2, ..., Varn". Quotes must present.'
+                                 ' For regression and classifier models the default independent variable'
+                                 ' is the Morgan molecular fingerprint "MORGAN2048".'))
+
+        # --vars
+        parser.add_argument("--vars", dest="varFlag", action="store_true",
+                            help=("Lists all the data variables available in the data dictionary and exits."))
 
         # --load
         parser.add_argument("--load", dest="loadFilename", default="noload",
@@ -130,19 +150,17 @@ class ExecEnv(object):
         # --stats
         parser.add_argument("--stats", dest="statsFilename", default="OSMStatistics.csv",
                             help=('File to append the test and train model statistics (default "OSMStatistics").'
-                                  ' The statistics file is always saved to a subdirectory the model <postfix>'
-                                  ' directory. Test data statistics are always appended to the specified statisitcs'
-                                  ' file in the "./<WorkDir>/<postfix>/test/". directory.'
-                                  ' If the "--extend" flag is specified then training data statistics are appended'
+                                  ' The statistics files is always saved to subdirectories of the the model <postfix>'
+                                  ' directory. Test data statistics are always appended to the specified statistics'
+                                  ' file in the "./<WorkDir>/<postfix>/test/" and training data statistics are appended'
                                   ' to the specified statistics file in the "./<WorkDir>/<postfix>/train" directory.'
                                   ' The postfix directory and the "test" and "train" subdirectories are created'
                                   ' if they do not exist. The statistics file(s) are created if they do not exist.'))
         # --extend
         parser.add_argument("--extend", dest="extendFlag", action="store_true",
-                            help=(' The "--extend" flag generates training data statistics and graphics.'
-                                  ' Training data statistics are appended to the statistics file in the'
+                            help=(' The "--extend" flag generates all training data statistics and graphics.'
+                                  '  Additional training graphics and statistics are added to the'
                                   ' "./<WorkDir>/<postfix>/train" directory.'
-                                  ' In addition, training data graphics files are deposited to the same directory.'
                                   ' The directory is created is it does not exist. The statistics file is created'
                                   ' if it does not exist.'
                                   ' Warning - the "--extend" flag may substantially increase OSM_QSAR runtime.'))
@@ -151,7 +169,7 @@ class ExecEnv(object):
         parser.add_argument("--clean", dest="cleanFlag", action="store_true",
                             help=('Deletes all files in the "test" and "train" subdirectories of the model '
                                   ' <postfix> directory before OSM_QSAR executes.'
-                                  ' The model files in the <postfix> directory are not deleted.'))
+                                  ' Any model files in the <postfix> directory are not deleted.'))
         # --log
         parser.add_argument("--log", dest="logFilename", default="OSM_QSAR.log",
                             help=('Log file. Appends the log to any existing logs (default "OSM_QSAR.log").'
@@ -162,18 +180,9 @@ class ExecEnv(object):
                                  'The log file always resides in the work directory.')
         # --model
         parser.add_argument("--model", dest="modelDescriptions", action="store_true",
-                            help=("Lists all defined classification models and exits."))
-        # --active
+                            help=("Lists all defined regression and classification models and exits."))
+        # --classify
         parser.add_argument("--classify", dest="classifyType", default="seq", help=classify_help)
-        # --active
-        parser.add_argument("--active", dest="activeNmols", default="active : 200.0",
-                            help=('Define the ligand Active/Inactive EC50 classification thresholds in nMols'
-                                  ' (default "active : 200.0"). Quotes are always required. Any number of thresholds'
-                                  ' and classifications can be specified. For example: "active : 200, partial : 350,'
-                                  ' ainactive : 600, binactive : 1000" defines 5 classifications and thresholds.'
-                                  ' "inactive" is always implied and in the example will be any ligand with an'
-                                  ' EC50 > 1000 nMol. These thresholds are used to specify the potency classes'
-                                  ' used by classification models.'))
         # --epoch
         parser.add_argument("--epoch", dest="epoch", default=-1, type=int,
                             help='The number of training epochs (iterations). Ignored if not valid for model.')
@@ -188,13 +197,11 @@ class ExecEnv(object):
 
 
         # List the available models and exit.
-
         if ExecEnv.args.modelDescriptions:
             ExecEnv.log.info(ExecEnv.list_available_models())
             sys.exit()
 
         # Check that the work directory exists and terminate if not.
-
         if not os.path.isdir(ExecEnv.args.workDirectory):
             ExecEnv.log.error('The OSM_QSAR work directory: "%s" does not exist.', ExecEnv.args.workDirectory)
             ExecEnv.log.error("Create or Rename the work directory.")
@@ -203,25 +210,17 @@ class ExecEnv(object):
             sys.exit()
 
         # Check that the specified model postfix exists
-
-        classify = False
-        for instance in ExecEnv.modelInstances:
-            if instance.model_postfix() == ExecEnv.args.classifyType:
-                classify =True
-
-        if not classify:
+        if ExecEnv.selected_model() is None:
             ExecEnv.log.warning("No classification model found for prefix: %s", ExecEnv.args.classifyType)
             ExecEnv.log.warning('Use the "--model" flag to see the available classification models.')
             ExecEnv.log.fatal("OSM_QSAR cannot continue.")
             sys.exit()
 
         # Check to see if the postfix directory and subdirectories exist and create if necessary.
-
         postfix_directory = os.path.join(ExecEnv.args.workDirectory, ExecEnv.args.classifyType)
         test_directory = os.path.join(postfix_directory, "test")
         train_directory = os.path.join(postfix_directory, "train")
         # Append the postfix directory to the environment file names.
-        ExecEnv.args.graphicsDirectory = postfix_directory # ********remove this line.
         ExecEnv.args.postfixDirectory = postfix_directory
         ExecEnv.args.testDirectory = test_directory
         ExecEnv.args.trainDirectory = train_directory
@@ -243,7 +242,6 @@ class ExecEnv(object):
             sys.exit()
 
         # clean the postfix subdirectories if the "--clean" flag is specified..
-
         try:
             for file_name in os.listdir(test_directory):
                 file_path = os.path.join(test_directory, file_name)
@@ -287,18 +285,15 @@ class ExecEnv(object):
             self.setup_file_logging(ExecEnv.args.logFilename, log_append, file_log_format)
 
         # Check that the data file exists and terminate if not.
-
         if not os.path.exists(ExecEnv.args.dataFilename):
             ExecEnv.log.error('The OSM_QSAR data file: "%s" does not exist.', ExecEnv.args.dataFilename)
             ExecEnv.log.error('Please examine the "--dir", "--data" and "--help" flags.')
             ExecEnv.log.fatal("OSM_QSAR cannot continue.")
             sys.exit()
 
-        # Set up the classification arguments.
-
-        ExecEnv.args.activeNmols = self.classification_array(ExecEnv.args.activeNmols)
-
-        # Create some additional entries in the argument namespace for cmd line and cpu time variables..
+        # Set up the classification variables.
+        ExecEnv.setup_variables()
+#        ExecEnv.args.activeNmols = self.classification_array(ExecEnv.args.activeNmols)
 
         cmd_line = ""
         for argStr in sys.argv:
@@ -307,11 +302,8 @@ class ExecEnv(object):
         ExecEnv.cmdLine = cmd_line
 
         # Update the args in the classifier singletons.
-
         for instance in ExecEnv.modelInstances:
-            instance.model_update_args(ExecEnv.args)
-
-
+            instance.model_update_environment(ExecEnv.args)
 
     @staticmethod
     def list_available_models():
@@ -323,13 +315,22 @@ class ExecEnv(object):
             model_name = model.model_name() + "\n"
             model_str += model_name
             model_str += "=" * len(model_name) + "\n"
-            model_postfix = "Postfix (--classify):"+ model.model_postfix() + "\n"
+            model_postfix = "--classify "+ model.model_postfix() + "\n"
             model_str += model_postfix
             model_str += "-" * len(model_postfix) + "\n"
             model_str += model.model_description() + "\n\n"
 
         return model_str
 
+
+    @staticmethod
+    def selected_model():
+        model = []
+        for instance in ExecEnv.modelInstances:
+            if instance.model_postfix() == ExecEnv.args.classifyType:
+                model = instance
+                break
+        return model
 
     def setup_logging(self, log_format):
         """Set up Python logging"""
@@ -365,51 +366,46 @@ class ExecEnv(object):
             ExecEnv.log.info("Flushed logfile: %s", log_filename)
         ExecEnv.log.info("Logging to file: %s", log_filename)
 
-    def classification_array(self, arg_string):
-        """Return as a sorted array of tuples"""
-        sorted_array = []
-        try:
-            classify_array = [x.strip() for x in arg_string.split(',')]
-            for element in classify_array:
-                atoms = [x.strip() for x in element.split(':')]
-                pEC50_uMols = math.log10(float(atoms[1]) / 1000.0) # Convert from nMols to log10 uMols
-                sorted_array.append((pEC50_uMols,atoms[0]))
+    @staticmethod
+    def setup_variables():
 
-            sorted(sorted_array, key=lambda x: x[0])  # Ensure ordering.
+        if ExecEnv.args.dependVar == "default":
+            ExecEnv.args.dependVar = "pIC50" if ExecEnv.selected_model().model_is_regression() else "IC50_ACTIVITY"
 
-            if len(sorted_array) == 0:
-                raise ValueError
+        if ExecEnv.args.indepList == "default":
+            ExecEnv.args.indepList = "MORGAN2048"
 
-        except:
-            ExecEnv.log.error('The "--active" argument: %s  is incorrectly formatted.', arg_string)
-            ExecEnv.log.error('Please examine the "--active" and "--help" flags.')
+        var_list = [x.strip() for x in ExecEnv.args.indepList.split(',')]
+        if len(var_list) == 0:
+            ExecEnv.log.error('The "--indep" argument: %s  is incorrectly formatted.', ExecEnv.args.indepList)
+            ExecEnv.log.error('Please examine the "--indep" and "--help" flags.')
             ExecEnv.log.fatal("OSM_QSAR Cannot Continue.")
             sys.exit()
 
-        return sorted_array
+        ExecEnv.args.indepList = var_list
 
 
 # ===================================================================================================
 # The program mainline.
 # ====================================================================================================
 
-
 def main():
 
     try:
 
-
         ExecEnv()  # Setup the runtime environment.
-
 
         ExecEnv.log.info("############ OSM_QSAR %s Start Classification ###########", __version__)
         ExecEnv.log.info("Command Line: %s", ExecEnv.cmdLine)
 
-        prop_obj = Properties(ExecEnv.args, ExecEnv.log)  # Use the ligand SMILEs to generate molecular properties
+        data = OSMGenerateData(ExecEnv.args, ExecEnv.log)  # Create all the variables used in the regressions.
 
-        for instance in ExecEnv.modelInstances:
-            if instance.model_postfix() == ExecEnv.args.classifyType:
-                instance.classify(prop_obj.train, prop_obj.test)
+        if ExecEnv.args.varFlag: # If the "--vars" flag is specified then list the variables and exit.
+            ExecEnv.log.info("The Available Modelling Variables are:")
+            data.display_variables()
+            sys.exit()
+
+        ExecEnv.selected_model().classify(data) # Do the regression or classification
 
         ExecEnv.log.info("Command Line: %s", ExecEnv.cmdLine)
         ExecEnv.log.info("Elapsed seconds CPU time %f (all processors, may exceed clock time, assumes no GPU)."
@@ -421,8 +417,8 @@ def main():
         ExecEnv.log.warning("Control-C pressed. Program terminates. Open files may be in an unsafe state.")
 
     except IOError:
-        ExecEnv.log.fatal(
-            'File error. Check filenames. Check the default work directory "--dir" with "OSM_QSAR.py --help".')
+        ExecEnv.log.fatal("File error. Check directories, file names and permissions."
+                          ' Check the default work directory "--dir" and --help".')
 
     except SystemExit:
         clean_up = None  # Placeholder for any cleanup code.

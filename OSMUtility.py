@@ -33,7 +33,6 @@ from sklearn.preprocessing import label_binarize
 # These objects are not part of the OSMBase object hierarchy.
 # ============================================================================
 
-
 class OSMUtility(object):
 
     def __init__(self): pass

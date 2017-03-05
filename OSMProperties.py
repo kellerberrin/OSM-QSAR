@@ -14,7 +14,7 @@
 #
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 # IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# FITNESS FOR A PARTICULAR PURPOSE AND NON INFRINGEMENT. IN NO EVENT SHALL THE
 # AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
@@ -25,173 +25,191 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
 
 import sys
-import numpy
+import numpy as np
+import pandas as pd
 
 from rdkit import Chem
 from rdkit.Chem import AllChem
 
+from OSMBase import OSMBaseModel
+
 # ===================================================================================================
 #
-# This class reads in the training/test CSV file (no header).
-# The CSV fields are - EC50 (in uMol), TestID, SMILES, CompoundID 
-#
-# Thee classes also generates molecular properties from the ligand SMILES.
-# The property currently generated is GetMorganFingerprint.
+# This class reads in the training/test CSV file.
+# The class also generates molecular properties from the SMILES.
 # See the rdkit documentation for further info.
-# Further properties are easily added by returning a dictionary
-# and concatonating this to the class member dictionaries using "merge()".
-# e.g. "self.merge(self.train,self.morgan(train["SMILE"),self.otherpropertyA(train[..]),...etc)".
 #
-# Currently returns two dictionaries: "train" (training data) and "test" (classification data)
-# These dictionaries are member variables in the "Properties" class and can be
-# accessed once the object has been created as: "PropertiesObj.train" and "PropertiesObj.test"
-# The dictionaries contain the following entries, each entry is an array of all compounds:
-# "pEC50" a float list of log10(EC50) values for each compound.
-# "CLASS" a string list tagging the entry as "TRAIN" or "TEST".
-# "SMILE" a string list of the molecular smiles for each compound.
-# "ID" a string list the OSM ids given to the compounds.
-# "MORGAN" a float list of the Morgan fingerprint of each compound.
 # ===================================================================================================
 
+class OSMGenerateData(object):
+    """Generate molecular properties"""
 
-class Properties(object):
-    """Generate molecular properties from SMILES"""
-
-# Concatonate an arbitrary number of dictionaries to create the train and test dictionaries.
-# Currently only Morgan fingerprints are generated. .
     def __init__(self, args, log):
 
-# Shallow copy of the environment variables. 
         self.log = log
         self.args = args
-# Retrieve the data from CSV file.
-        self.train, self.test = self.read_csv(self.args.dataFilename)
+        self.data = self.read_csv(self.args.dataFilename)
 
-# Create the properties training dictionary.
-        self.train = self.merge(self.train,
-                                self.morgan1024(self.train["SMILE"]),
-                                self.morgan2048(self.train["SMILE"]))
+        self.check_smiles(self.data)
 
-# Create the properties test dictionary.
-        self.test = self.merge(self.test,
-                               self.morgan1024(self.test["SMILE"]),
-                               self.morgan2048(self.test["SMILE"]))
+        # Add the finger print columns
+        morgan_1024 = lambda x: AllChem.GetMorganFingerprintAsBitVect(x, 4, nBits=1024)
+        morgan_2048 = lambda x: AllChem.GetMorganFingerprintAsBitVect(x, 2, nBits=2048)
 
-# Read the CSV file.    
+        self.add_fingerprint(self.data, morgan_1024, "MORGAN1024")
+        self.add_fingerprint(self.data, morgan_2048, "MORGAN2048")
+
+    def display_variables(self):
+            for column in self.data.columns:
+                self.log.info("Variable: %s", column)
+
+    def get_data(self):
+        return self.data
+
+    # Read CSV File into a pandas data frame
     def read_csv(self, file_name):
 
         self.log.info("Loading data file: %s ...", file_name)
-
-        file_data = []
-        found_header = False
-        header_line = ""
-        mandatory_fields = ["pEC50", "SMILE", "ID", "CLASS"]
+        mandatory_fields = ["pIC50", "SMILE", "ID", "CLASS"]
 
         try:
 
-            with open(file_name, 'r') as in_file:
-                content = in_file.readlines()
+            data_frame = pd.read_csv(file_name)
 
-            content = [x.strip() for x in content]
-
-            for line in content:   # Strip comments and setup header.
-                if line[:1] != "#":   # The first character of a comment line must be a "#".
-                    if not found_header:
-                        found_header = True
-                        header_line = line
-                    else:
-                        file_data.append(line)
-
-            header_list = [x.strip() for x in header_line.split(",")]
-            self.log.info("%s contains %d data fields", file_name, len(header_list))
-
-            if not set(mandatory_fields) <= set(header_list):
+            if not set(mandatory_fields) <= set(data_frame):
                 self.log.error("Mandatory data fields %s absent.", ",".join(mandatory_fields))
-                self.log.error("File %s contains fields %s.", file_name, ",".join(header_list))
+                self.log.error("File %s contains fields %s.", file_name, ",".join(data_frame))
                 self.log.fatal("OSM_QSAR cannot continue.")
                 sys.exit()
-
-            train_data = [[] for x in range(len(header_list))]
-            test_data = [[] for x in range(len(header_list))]
-            class_index = header_list.index("CLASS")
-            pEC50_index = header_list.index("pEC50")
-
-            line_no = 1
-            for line in file_data:
-                field_list = [x.strip() for x in line.split(",")]
-
-                if len(field_list) != len(header_list):
-                    self.log.error("Incorrect number of data fields: %d, expected:%d at data_line:%d",
-                                   len(field_list), len(header_list), line_no)
-                    self.log.error("File %s contains fields %s.", file_name, ",".join(header_list))
-                    self.log.fatal("OSM_QSAR cannot continue.")
-                    sys.exit()
-
-                field_list[pEC50_index] = float(field_list[pEC50_index])
-
-                if field_list[class_index].upper() == "TEST":
-                    for idx in range(len(field_list)):
-                        test_data[idx].append(field_list[idx])
-                else:
-                    for idx in range(len(field_list)):
-                        train_data[idx].append(field_list[idx])
-
-                line_no += 1
-
-            train_dict = {}
-            test_dict = {}
-            for idx in range(len(header_list)):
-                train_dict[header_list[idx]] = train_data[idx]
-                test_dict[header_list[idx]] = test_data[idx]
-
-            self.log.info("%s contains a total of %d training molecules", file_name, len(train_data[0]))
-            self.log.info("%s contains a total of %d test molecules", file_name, len(test_data[0]))
 
         except IOError:
             self.log.error('Problem reading data file %s, Check the "--data", ""--dir" and --help" flags.', file_name)
             self.log.fatal("OSM_QSAR cannot continue.")
             sys.exit()
 
-        return train_dict, test_dict
+        self.log.info("Read %d records from file %s", data_frame.shape[0], file_name)
 
-# Utility function to merge property dictionaries.
-    def merge(self, *dict_args):
-        """ Given any number of dicts, shallow copy and merge into a new dict."""
-    
-        result = {}
-        for dictionary in dict_args:
-            result.update(dictionary)
-        return result
+        return data_frame
 
-
-# Generate the Morgan molecular fingerprint for 1024 bits..
-    def morgan1024(self, smiles):
-        """ Generate Morgan molecular properties as a dictionary containing an numpy array of float[1024]"""
-
-        mols = [Chem.MolFromSmiles(x) for x in smiles]
-        bit_info = {}
-        morgan_fps = [AllChem.GetMorganFingerprintAsBitVect(x, 4, nBits=1024, bitInfo=bit_info) for x in mols]
+    # Generate the molecular fingerprints..
+    def add_fingerprint(self, data_frame, finger_printer, column_name):
+        """ Generate molecular fingerprints as a numpy array of floats"""
 
         int_list = []
-        for arr in morgan_fps:
-            int_list.append([int(x) for x in arr])
+        for index, row in data_frame.iterrows():
 
-        morgan_floats = numpy.array(int_list, dtype=float)
-        return { "MORGAN1024" : morgan_floats }
+            mol = Chem.MolFromSmiles(row["SMILE"])
+            fp = finger_printer(mol)
+            int_fp = [int(x) for x in fp]
+            int_list.append(int_fp)
 
-# Generate the Morgan molecular fingerprint for 2048 bits.
-    def morgan2048(self, smiles):
-        """ Generate Morgan molecular properties as a dictionary containing an numpy array of float[2048]"""
+        np_fp = np.array(int_list, dtype=float)
+        data_frame[column_name] = pd.Series(np_fp.tolist(), index=data_frame.index)
 
-        mols = [Chem.MolFromSmiles(x) for x in smiles]
-        bit_info = {}
-        morgan_fps = [AllChem.GetMorganFingerprintAsBitVect(x, 2, nBits=2048, bitInfo=bit_info) for x in mols]
+    def check_smiles(self, data_frame):
+        # Check all the "SMILES" and ensure they are valid.
 
-        int_list = []
-        for arr in morgan_fps:
-            int_list.append([int(x) for x in arr])
+        for index, row in data_frame.iterrows():
 
-        morgan_floats = numpy.array(int_list, dtype=float)
-        return { "MORGAN2048" : morgan_floats }
+            mol = Chem.MolFromSmiles(row["SMILE"])
 
+            try:
+                result = Chem.SanitizeMol(mol)
+                if result != Chem.SanitizeFlags.SANITIZE_NONE:
+                    sanitized_smile = Chem.MolToSmiles(mol)
+                    self.log.warning("Sanitized SMILE %s, Compound ID:%s", sanitized_smile, data_frame[index, "ID"])
+                    data_frame.set_value(index, "SMILE", sanitized_smile)
+            except:
+                self.log.warning("Unable to Sanitize SMILE %s, Compound ID:%s", row["SMILE"] , row["ID"])
+                self.log.warning("Record Deleted. OSM_QSAR attempts to continue ....")
+                data_frame.drop(index, inplace=True)
+
+
+class AccessData(object): # The facade class actually used by the model.
+
+    def __init__(self, args, log, data, depend_args, indep_args):
+        self.log = log
+        self.args = args
+        self.data = data
+        self.dependent_var = depend_args
+        self.independent_var_list = indep_args
+
+    def get_field(self, var):
+        return self.data[var].tolist()
+
+    def target_data(self):
+        return self.data[self.dependent_var].values # return as a numpy array
+
+    def input_data(self):
+        matrix_list = []
+        for var in self.independent_var_list:
+            matrix = np.array(self.data[var].tolist(), dtype = float)
+            matrix_list.append(matrix)
+        return matrix_list   # return as a list of numpy matrices
+
+class OSMModelData(object):
+
+    def __init__(self, args, log, model, data):
+
+        self.log = log
+        self.args = args
+        self.data = data.get_data()
+        self.dependent_var = model.model_arguments()["DEPENDENT"]
+        self.independent_var_list = model.model_arguments()["INDEPENDENT"]
+        self.train, self.test = self.setup_model_data(model)
+
+    def training(self):
+        return AccessData(self.args, self.log, self.train, self.dependent_var, self.independent_var_list)
+
+    def testing(self):
+        return AccessData(self.args, self.log, self.test, self.dependent_var, self.independent_var_list)
+
+########################################################################################################
+# Local member functions.
+########################################################################################################
+
+    def setup_model_data(self, model):
+        self.setup_dependent_variable(model)
+        self.setup_independent_variables(model)
+        return self.create_train_test(model)
+
+    def setup_dependent_variable(self, model):
+
+        if self.dependent_var not in self.data.columns:
+            self.args.log.error('Model dependent variable %d not found in data frame, check with "--vars"',
+                                self.dependent_var)
+            self.log.fatal("OSM_QSAR cannot continue.")
+            sys.exit()
+
+        if model.model_is_regression(): # convert to numeric.
+            try:
+                pd.to_numeric(self.data[self.dependent_var])
+            except ValueError:
+                self.log.error("Problem converting dependent variable %s to floats", self.dependent_var)
+                self.log.fatal("OSM_QSAR cannot continue.")
+                sys.exit()
+        else: # the model is a classifier
+            self.data[self.dependent_var].replace("", np.nan, inplace=True) # Convert empty fields to NaNs
+
+        self.data.dropna(subset=[self.dependent_var], inplace=True) # Delete all NaN rows.
+
+        if self.data.shape[0] == 0:
+            self.log.error("No valid values in for dependent variable %s (check string or numeric)", self.dependent_var)
+            self.log.fatal("OSM_QSAR cannot continue.")
+            sys.exit()
+
+    def setup_independent_variables(self, model):
+
+        if not set(self.independent_var_list) <= set(self.data.columns):
+            self.args.log.error('Model %s independent variables %s not found in data frame, check with "--vars"'
+                               , model.model_name(), ",".join(self.independent_var_list))
+            self.log.fatal("OSM_QSAR cannot continue.")
+            sys.exit()
+
+    def create_train_test(self, model):
+        train = self.data.loc[self.data["CLASS"] == "TRAIN"]
+        test = self.data.loc[self.data["CLASS"] == "TEST"]
+        self.log.info("Model %s training on %d molecules", model.model_name(), train.shape[0])
+        self.log.info("Model %s testing (fitting) on %d molecules", model.model_name(), test.shape[0])
+        return train, test
 

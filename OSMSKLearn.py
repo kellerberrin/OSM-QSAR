@@ -60,16 +60,15 @@ from OSMUtility import OSMUtility
 ######################################################################################################
 
 class OSMSKLearnSVMR(with_metaclass(ModelMetaClass, OSMRegression)):
-
     def __init__(self, args, log):
-        super(OSMSKLearnSVMR, self).__init__(args, log)     #Edit this and change the class name.
-        
-# These functions need to be re-defined in all classifier model classes. 
+        super(OSMSKLearnSVMR, self).__init__(args, log)  # Edit this and change the class name.
+
+    # These functions need to be re-defined in all classifier model classes.
 
     def model_name(self):
         return "Support Vector Machine (SVM), Regression"  # Model name string.
 
-    def model_postfix(self): # Must be unique for each model.
+    def model_postfix(self):  # Must be unique for each model.
         return "svmr"
 
     def model_description(self):
@@ -77,10 +76,8 @@ class OSMSKLearnSVMR(with_metaclass(ModelMetaClass, OSMRegression)):
                 " This SVM (postfix svmr) is configured as a regression classifier.\n"
                 " For more information, Google SKLearn and read the documentation.\n")
 
-
     def model_define(self):
         return svm.SVR(kernel=str("rbf"), C=1e3, gamma=0.00001)
-
 
     def model_train(self, model, train):
         model.fit(train["MORGAN2048"], train["pEC50"])
@@ -96,14 +93,13 @@ class OSMSKLearnSVMR(with_metaclass(ModelMetaClass, OSMRegression)):
 
     def model_prediction(self, model, data):
         prediction = model.predict(data["MORGAN2048"])
-        return {"prediction": prediction, "actual": data["pEC50"] }
+        return {"prediction": prediction, "actual": data["pEC50"]}
 
-
-######################################################################################################
-#
-# Optional member functions.
-#
-######################################################################################################
+    ######################################################################################################
+    #
+    # Optional member functions.
+    #
+    ######################################################################################################
 
     def model_graphics(self, model, train, test):
         self.model_similarity(model, test, self.args.testDirectory)
@@ -111,7 +107,8 @@ class OSMSKLearnSVMR(with_metaclass(ModelMetaClass, OSMRegression)):
             self.model_similarity(model, train, self.args.trainDirectory)
 
 
-# Generate the png similarity diagrams for the test compounds.
+            # Generate the png similarity diagrams for the test compounds.
+
     def model_similarity(self, model, data, directory):
 
         diagram_total = len(data["ID"])
@@ -126,8 +123,8 @@ class OSMSKLearnSVMR(with_metaclass(ModelMetaClass, OSMRegression)):
             shape = []
             shape.append(int_list)
             fp_floats = numpy.array(shape, dtype=float)
-            prediction = prob_func(fp_floats)[0]   #returns an pEC50 prediction (not probability)
-            return prediction * -1.0 # Flip the sign, -ve is good.
+            prediction = prob_func(fp_floats)[0]  # returns an pEC50 prediction (not probability)
+            return prediction * -1.0  # Flip the sign, -ve is good.
 
         # Ensure that we are using 2048 bit morgan fingerprints.
         def get_fingerprint(mol, atom):
@@ -143,11 +140,12 @@ class OSMSKLearnSVMR(with_metaclass(ModelMetaClass, OSMRegression)):
             graph_file_name = data["ID"][idx] + "_sim_" + self.model_postfix() + ".png"
             graph_path_name = os.path.join(directory, graph_file_name)
             fig.savefig(graph_path_name, bbox_inches="tight")
-            plt.close(fig) # release memory
+            plt.close(fig)  # release memory
             diagram_count += 1
             progress_line = "Processing similarity diagram {}/{}\r".format(diagram_count, diagram_total)
             sys.stdout.write(progress_line)
             sys.stdout.flush()
+
 
 ######################################################################################################
 #
@@ -157,7 +155,6 @@ class OSMSKLearnSVMR(with_metaclass(ModelMetaClass, OSMRegression)):
 
 
 class OSMSKLearnSVMC(with_metaclass(ModelMetaClass, OSMClassification)):
-
     def __init__(self, args, log):
         super(OSMSKLearnSVMC, self).__init__(args, log)  # Edit this and change the class name.
 
@@ -176,9 +173,10 @@ class OSMSKLearnSVMC(with_metaclass(ModelMetaClass, OSMClassification)):
 
     def model_define(self):
         return OneVsRestClassifier(svm.SVC(kernel=str("rbf"), probability=True, C=1e3, gamma=0.00001))
-#        return svm.SVC(probability=True)
 
-    def model_train(self, model, train): # convert to one hot, then train.
+    #        return svm.SVC(probability=True)
+
+    def model_train(self, model, train):  # convert to one hot, then train.
         model.fit(train["MORGAN2048"], OSMUtility.data_classify(train["pEC50"], self.args.activeNmols))
 
     # should return a model, can just return model_define() if there is no model file.
@@ -190,14 +188,13 @@ class OSMSKLearnSVMC(with_metaclass(ModelMetaClass, OSMClassification)):
         self.log.warn("%s model write function not defined.", self.model_name())
         return
 
-    def model_prediction(self, model, data):  #predictions and actual are returned as one hot vectors.
+    def model_prediction(self, model, data):  # predictions and actual are returned as one hot vectors.
         prediction = model.predict(data["MORGAN2048"])
-        return {"prediction": prediction, "actual": OSMUtility.data_classify(data["pEC50"], self.args.activeNmols) }
+        return {"prediction": prediction, "actual": OSMUtility.data_classify(data["pEC50"], self.args.activeNmols)}
 
-    def model_probability(self, model, data):  # probabilities are returned as a list of lists.
+    def model_probability(self, model, data):  # probabilities are returned as a numpy.shape = (samples, classes)
         probability = model.predict_proba(data["MORGAN2048"])
-        return {"probability": probability }
-
+        return {"probability": probability}
 
     ######################################################################################################
     #
@@ -225,7 +222,8 @@ class OSMSKLearnSVMC(with_metaclass(ModelMetaClass, OSMClassification)):
             shape = []
             shape.append(int_list)
             fp_floats = numpy.array(shape, dtype=float)
-            active_prob = prob_func(fp_floats)[0][0]  # returns an "active" probability (first element of the prob array).
+            active_prob = prob_func(fp_floats)[0][
+                0]  # returns an "active" probability (first element of the prob array).
             return active_prob
 
         # Ensure that we are using 2048 bit morgan fingerprints.
@@ -254,7 +252,7 @@ class OSMSKLearnSVMC(with_metaclass(ModelMetaClass, OSMClassification)):
 
         plt.figure()
         lw = 2
-        plt.plot(fpr[2], tpr[2], color='darkorange',lw=lw, label='ROC curve (area = %0.2f)' % roc_auc[2])
+        plt.plot(fpr[2], tpr[2], color='darkorange', lw=lw, label='ROC curve (area = %0.2f)' % roc_auc[2])
         plt.plot([0, 1], [0, 1], color='navy', lw=lw, linestyle='--')
         plt.xlim([0.0, 1.0])
         plt.ylim([0.0, 1.05])
@@ -267,4 +265,3 @@ class OSMSKLearnSVMC(with_metaclass(ModelMetaClass, OSMClassification)):
         graph_path_name = os.path.join(self.args.graphicsDirectory, graph_file_name)
         plt.savefig(graph_path_name, bbox_inches="tight")
         plt.close()  # release memory
-

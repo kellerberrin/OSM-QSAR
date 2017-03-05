@@ -33,14 +33,13 @@ import scipy.stats as st
 from OSMBase import OSMBaseModel
 from OSMUtility import OSMUtility
 
+
 # ============================================================================
 # The Regression Results Presentation Object.
 # ============================================================================
 
 
 class OSMRegression(OSMBaseModel):
-
-
     def __init__(self, args, log):
         super(OSMRegression, self).__init__(args, log)
 
@@ -48,32 +47,35 @@ class OSMRegression(OSMBaseModel):
         self.log = log
         self.args = args
 
-#####################################################################################
-#
-# Virtual member functions called from OSMBase
-#
-#####################################################################################
+    #####################################################################################
+    #
+    # Virtual member functions called from OSMBase
+    #
+    #####################################################################################
 
-    def model_classification_results(self, model, train, test):
-        self.train_predictions = self.model_prediction(model,train)  # Returns a dict. with "prediction" and "actual"
+    def model_is_regression(self):
+        return True
+
+    def model_classification_results(self):
+        self.train_predictions = self.model_prediction(self.data.training())  # Returns a dict. with "prediction" and "actual"
         self.train_stats = self.model_accuracy(self.train_predictions)  # Returns a dictionary of accuracy tests.
 
-        self.test_predictions = self.model_prediction(model, test)
+        self.test_predictions = self.model_prediction(self.data.testing())
         self.test_stats = self.model_accuracy(self.test_predictions)
         # Send statistics to the console and log file.
-        self.model_log_statistics(model, train, test)
+        self.model_log_statistics()
         # Generate graphics (only if the virtual function defined at model level).
-        self.model_graphics(model, train, test)
+        self.model_graphics()
         # Append statistics to the stats files.
-        self.model_write_statistics(model, train, test)
+        self.model_write_statistics()
 
-    def model_log_statistics(self, model, train, test):
-        self.log_train_statistics(model, train)
-        self.log_test_statistics(model, test)
+    def model_log_statistics(self):
+        self.log_train_statistics(self.data.training())
+        self.log_test_statistics(self.data.testing())
 
-    def model_write_statistics(self, model, train, test):
-        self.write_statistics(model, train, self.train_stats, self.train_predictions, self.args.trainDirectory)
-        self.write_statistics(model, test, self.test_stats, self.test_predictions, self.args.testDirectory)
+    def model_write_statistics(self):
+        self.write_statistics(self.data.training(), self.train_stats, self.train_predictions, self.args.trainDirectory)
+        self.write_statistics(self.data.testing(), self.test_stats, self.test_predictions, self.args.testDirectory)
 
     def model_accuracy(self, predictions):
         predict = predictions["prediction"]
@@ -95,11 +97,6 @@ class OSMRegression(OSMBaseModel):
         predict_ranks = st.rankdata(predict, method='average')
         actual_ranks = st.rankdata(actual, method='average')
 
-        #  Active / Inactive classifications
-
-        predict_active = OSMUtility.data_text(predict, self.args.activeNmols)
-        actual_active = OSMUtility.data_text(actual, self.args.activeNmols)
-
         # generate Kendel rank correlation coefficient
 
         kendall = {}
@@ -113,50 +110,43 @@ class OSMRegression(OSMBaseModel):
 
         # Return the model analysis statistics in a dictionary.
         return {"MUE": MUE, "RMSE": RMSE, "predict_ranks": predict_ranks,
-                "actual_ranks": actual_ranks, "predict_active": predict_active,
-                "actual_active": actual_active, "kendall": kendall, "spearman": spearman}
+                "actual_ranks": actual_ranks, "kendall": kendall, "spearman": spearman}
 
+    #####################################################################################
+    #
+    # Local member functions
+    #
+    #####################################################################################
 
+    def log_train_statistics(self, train):
 
-#####################################################################################
-#
-# Local member functions
-#
-#####################################################################################
+        self.log.info("Training Compounds pIC50 Mean Unsigned Error (MUE): %f", self.train_stats["MUE"])
+        self.log.info("Training Compounds pIC50 RMS Error: %f", self.train_stats["RMSE"])
 
-    def log_train_statistics(self, model, train):
-    
-        self.log.info("Training Compounds pEC50 Mean Unsigned Error (MUE): %f", self.train_stats["MUE"])
-        self.log.info("Training Compounds pEC50 RMS Error: %f", self.train_stats["RMSE"])
-
-
-# Display the classification results and write to the log file.
-    def log_test_statistics(self, model, data):
+    # Display the classification results and write to the log file.
+    def log_test_statistics(self, test):
         """Display all the calculated statistics for each model; run"""
 
-
-        self.log.info("Test Compounds pEC50 Mean Unsigned Error (MUE): %f", self.test_stats["MUE"])
-        self.log.info("Test Compounds pEC50 RMS Error: %f", self.test_stats["RMSE"])
+        self.log.info("Test Compounds pIC50 Mean Unsigned Error (MUE): %f", self.test_stats["MUE"])
+        self.log.info("Test Compounds pIC50 RMS Error: %f", self.test_stats["RMSE"])
 
         self.log.info("Test Compounds Kendall's Rank Coefficient (tau): %f, p-value: %f",
                       self.test_stats["kendall"]["tau"], self.test_stats["kendall"]["p-value"])
         self.log.info("Test Compounds Spearman Coefficient (rho): %f, p-value: %f",
                       self.test_stats["spearman"]["rho"], self.test_stats["spearman"]["p-value"])
-        self.log.info("Test Compounds pEC50 Mean Unsigned Error (MUE): %f", self.test_stats["MUE"])
+        self.log.info("Test Compounds pIC50 Mean Unsigned Error (MUE): %f", self.test_stats["MUE"])
         self.log.info("Test Compounds Results")
-        self.log.info("ID, Tested Rank, Pred. Rank, Tested pEC50, Pred. pEC50, Tested Active, Pred. Active")
-        self.log.info("===================================================================================")
+        self.log.info("ID, Tested Rank, Pred. Rank, Tested pIC50, Pred. pIC50")
+        self.log.info("======================================================")
 
-        for idx in range(len(data["ID"])):
-            self.log.info("%s, %d, %d, %f, %f, %s, %s", data["ID"][idx],
-                                                        self.test_stats["actual_ranks"][idx],
-                                                        self.test_stats["predict_ranks"][idx],
-                                                        self.test_predictions["actual"][idx],
-                                                        self.test_predictions["prediction"][idx],
-                                                        self.test_stats["actual_active"][idx],
-                                                        self.test_stats["predict_active"][idx]),
+        for idx in range(len(test.get_field("ID"))):
+            self.log.info("%s, %d, %d, %f, %f", test.get_field("ID")[idx],
+                          self.test_stats["actual_ranks"][idx],
+                          self.test_stats["predict_ranks"][idx],
+                          self.test_predictions["actual"][idx],
+                          self.test_predictions["prediction"][idx])
 
-    def write_statistics(self, model, data, statistics, predictions, directory):
+    def write_statistics(self, data, statistics, predictions, directory):
 
         # Open the statistics file and append the model results statistics.
 
@@ -188,18 +178,14 @@ class OSMRegression(OSMBaseModel):
                 line = "ID, Rank, Pred_Rank, Tested_pEC50, Pred_pEC50, Tested_Active, Pred_Active, SMILE\n"
                 stats_file.write(line)
 
-                for idx in range(len(data["ID"])):
-                    line = "{}, {}, {}, {}, {}, {}, {}, {}\n".format(data["ID"][idx],
-                                                                     statistics["actual_ranks"][idx],
-                                                                     statistics["predict_ranks"][idx],
-                                                                     predictions["actual"][idx],
-                                                                     predictions["prediction"][idx],
-                                                                     statistics["actual_active"][idx],
-                                                                     statistics["predict_active"][idx],
-                                                                     data["SMILE"][idx])
+                for idx in range(len(data.get_field("ID"))):
+                    line = "{}, {}, {}, {}, {}, {}\n".format(data.get_field("ID")[idx],
+                                                             statistics["actual_ranks"][idx],
+                                                             statistics["predict_ranks"][idx],
+                                                             predictions["actual"][idx],
+                                                             predictions["prediction"][idx],
+                                                             data.get_field("SMILE")[idx])
                     stats_file.write(line)
-
-
 
         except IOError:
             self.log.error("Problem writing to statistics file %s, check path and permissions", stats_filename)

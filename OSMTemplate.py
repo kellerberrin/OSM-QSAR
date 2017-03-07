@@ -25,12 +25,13 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
 from six import with_metaclass
 
-import numpy
+import numpy as np
 
 from OSMBase import ModelMetaClass  # The virtual model class.
 from OSMRegression import OSMRegression  # Display and save regression results.
 from OSMClassify import OSMClassification  # Display and save classification results.
 from OSMUtility import OSMUtility
+from OSMModelData import OSMModelData
 
 
 class OSMRegressionTemplate(with_metaclass(ModelMetaClass, OSMRegression)):  # Edit this and change the class name
@@ -38,6 +39,9 @@ class OSMRegressionTemplate(with_metaclass(ModelMetaClass, OSMRegression)):  # E
 
     def __init__(self, args, log):
         super(OSMRegressionTemplate, self).__init__(args, log)  # Edit this and change the class name.
+
+        self.arguments = { "DEPENDENT" : { "VARIABLE" : "IC50", "SHAPE" : (-1,), "TYPE": np.float64 }
+                         , "INDEPENDENT" : [ { "VARIABLE" : "IC50", "SHAPE": (-1,), "TYPE": np.float64 } ] }
 
     # These functions need to be re-defined in all classifier model classes.
 
@@ -52,23 +56,30 @@ class OSMRegressionTemplate(with_metaclass(ModelMetaClass, OSMRegression)):  # E
                 "To implement a new OSM regression model take the following steps:\n"
                 ' 1. Copy "OSMTemplate.py" to "OSMMyNewModel.py"\n'
                 ' 2. Change the class name to "OSMMyNewModel".\n'
-                ' 3. Redefine the member functions that begin with "model_".\n'
-                ' 4. Add the line "from OSMMyNewModel import OSMMYNewModel" to "OSM_QSAR.py".\n'
+                ' 3. Define the "self.arguments" that your model will use (you can change these at runtime)\n'
+                ' 4. Redefine the member functions that begin with "model_".\n'
+                ' 5. Add the line "from OSMMyNewModel import OSMMYNewModel" to "OSM_QSAR.py".\n'
                 " That's all. All the statistics, analytics and (implemented) graphics functionality\n"
                 " are now used by your model.")
 
     def model_define(self):
         return None  # Should return a model.
 
-    def model_train(self, model, train): pass
+    def model_arguments(self):
+        return self.arguments
+
+    def model_create_data(self, data):
+        return OSMModelData(self.args, self.log, self, data)
+
+    def model_train(self): pass
 
     def model_read(self, file_name):
         return None  # should return a model, can just return model_define() if there is no model file.
 
-    def model_write(self, model, file_name): pass
+    def model_write(self, file_name): pass
 
-    def model_prediction(self, model, data):
-        return {"prediction": data["pEC50"], "actual": data["pEC50"]}
+    def model_prediction(self, data):
+        return {"prediction": data.target_data(), "actual": data.target_data()}
 
 ######################################################################################################
 #
@@ -83,6 +94,9 @@ class OSMClassificationTemplate(with_metaclass(ModelMetaClass, OSMClassification
     def __init__(self, args, log):
         super(OSMClassificationTemplate, self).__init__(args, log)  # Edit this and change the class name.
 
+        self.arguments = { "DEPENDENT" : { "VARIABLE" : "ION_ACTIVITY", "SHAPE" : (-1,), "TYPE": np.str }
+                         , "INDEPENDENT" : [ { "VARIABLE" : "ION_ACTIVITY", "SHAPE": (-1,), "TYPE": np.str } ] }
+
     # These functions need to be re-defined in all classifier model classes.
 
     def model_name(self):
@@ -96,27 +110,29 @@ class OSMClassificationTemplate(with_metaclass(ModelMetaClass, OSMClassification
                 "To implement a new OSM classification model take the following steps:\n"
                 ' 1. Copy "OSMTemplate.py" to "OSMMyNewModel.py"\n'
                 ' 2. Change the class name to "OSMMyNewModel".\n'
-                ' 3. Redefine the member functions that begin with "model_".\n'
-                ' 4. Add the line "from OSMMyNewModel import OSMMYNewModel" to "OSM_QSAR.py".\n'
+                ' 3. Define the "self.arguments" that your model will use (you can change these at runtime)\n'
+                ' 4. Redefine the member functions that begin with "model_".\n'
+                ' 5. Add the line "from OSMMyNewModel import OSMMYNewModel" to "OSM_QSAR.py".\n'
                 " That's all. All the statistics, analytics and (implemented) graphics functionality\n"
                 " are now used by your model.")
 
     def model_define(self):
         return None  # Should return a model.
 
-    def model_train(self, model, train): pass
+
+    def model_train(self): pass
 
     def model_read(self, file_name):
         return None  # should return a model, can just return model_define() if there is no model file.
 
-    def model_write(self, model, file_name): pass
+    def model_write(self, file_name): pass
 
-    def model_prediction(self, model, data): # prediction and actual are returned as one hot vectors.
-        return {"prediction": OSMUtility.data_classify(data["pEC50"], self.args.activeNmols)
-            , "actual": OSMUtility.data_classify(data["pEC50"], self.args.activeNmols)}
+    def model_prediction(self, data): # prediction and actual are returned as one hot vectors.
+        return {"prediction": data.target_data(), "actual": data.target_data() }
 
-    def model_probability(self, model, data):  # probabilities are returned as a numpy.shape = (samples, classes)
-        probability = numpy.zeros((len(data["pEC50"]), len(OSMUtility.enumerate_classes(self.args.activeNmols))))
+    def model_probability(self, data):  # probabilities are returned as a numpy.shape = (samples, classes)
+        print("shape", data.target_data().shape[0])
+        probability = np.zeros((data.target_data().shape[0], len(self.model_enumerate_classes())), dtype=float)
         probability[:, 0] = 1.0
         return {"probability": probability}
 

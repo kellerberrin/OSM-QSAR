@@ -31,7 +31,6 @@ import pandas as pd
 from rdkit import Chem
 from rdkit.Chem import AllChem
 
-from OSMBase import OSMBaseModel
 
 # ===================================================================================================
 #
@@ -101,10 +100,10 @@ class OSMGenerateData(object):
             mol = Chem.MolFromSmiles(row["SMILE"])
             fp = finger_printer(mol)
             int_fp = [int(x) for x in fp]
-            int_list.append(int_fp)
-
-        np_fp = np.array(int_list, dtype=float)
-        data_frame[column_name] = pd.Series(np_fp.tolist(), index=data_frame.index)
+            np_fp = np.array(int_fp, dtype=float)
+            int_list.append(np_fp)
+        # Store a list of numpy.arrays
+        data_frame[column_name] = pd.Series(int_list, index=data_frame.index)
 
     def check_smiles(self, data_frame):
         # Check all the "SMILES" and ensure they are valid.
@@ -123,93 +122,4 @@ class OSMGenerateData(object):
                 self.log.warning("Unable to Sanitize SMILE %s, Compound ID:%s", row["SMILE"] , row["ID"])
                 self.log.warning("Record Deleted. OSM_QSAR attempts to continue ....")
                 data_frame.drop(index, inplace=True)
-
-
-class AccessData(object): # The facade class actually used by the model.
-
-    def __init__(self, args, log, data, depend_args, indep_args):
-        self.log = log
-        self.args = args
-        self.data = data
-        self.dependent_var = depend_args
-        self.independent_var_list = indep_args
-
-    def get_field(self, var):
-        return self.data[var].tolist()
-
-    def target_data(self):
-        return self.data[self.dependent_var].values # return as a numpy array
-
-    def input_data(self):
-        matrix_list = []
-        for var in self.independent_var_list:
-            matrix = np.array(self.data[var].tolist(), dtype = float)
-            matrix_list.append(matrix)
-        return matrix_list   # return as a list of numpy matrices
-
-class OSMModelData(object):
-
-    def __init__(self, args, log, model, data):
-
-        self.log = log
-        self.args = args
-        self.data = data.get_data()
-        self.dependent_var = model.model_arguments()["DEPENDENT"]
-        self.independent_var_list = model.model_arguments()["INDEPENDENT"]
-        self.train, self.test = self.setup_model_data(model)
-
-    def training(self):
-        return AccessData(self.args, self.log, self.train, self.dependent_var, self.independent_var_list)
-
-    def testing(self):
-        return AccessData(self.args, self.log, self.test, self.dependent_var, self.independent_var_list)
-
-########################################################################################################
-# Local member functions.
-########################################################################################################
-
-    def setup_model_data(self, model):
-        self.setup_dependent_variable(model)
-        self.setup_independent_variables(model)
-        return self.create_train_test(model)
-
-    def setup_dependent_variable(self, model):
-
-        if self.dependent_var not in self.data.columns:
-            self.args.log.error('Model dependent variable %d not found in data frame, check with "--vars"',
-                                self.dependent_var)
-            self.log.fatal("OSM_QSAR cannot continue.")
-            sys.exit()
-
-        if model.model_is_regression(): # convert to numeric.
-            try:
-                pd.to_numeric(self.data[self.dependent_var])
-            except ValueError:
-                self.log.error("Problem converting dependent variable %s to floats", self.dependent_var)
-                self.log.fatal("OSM_QSAR cannot continue.")
-                sys.exit()
-        else: # the model is a classifier
-            self.data[self.dependent_var].replace("", np.nan, inplace=True) # Convert empty fields to NaNs
-
-        self.data.dropna(subset=[self.dependent_var], inplace=True) # Delete all NaN rows.
-
-        if self.data.shape[0] == 0:
-            self.log.error("No valid values in for dependent variable %s (check string or numeric)", self.dependent_var)
-            self.log.fatal("OSM_QSAR cannot continue.")
-            sys.exit()
-
-    def setup_independent_variables(self, model):
-
-        if not set(self.independent_var_list) <= set(self.data.columns):
-            self.args.log.error('Model %s independent variables %s not found in data frame, check with "--vars"'
-                               , model.model_name(), ",".join(self.independent_var_list))
-            self.log.fatal("OSM_QSAR cannot continue.")
-            sys.exit()
-
-    def create_train_test(self, model):
-        train = self.data.loc[self.data["CLASS"] == "TRAIN"]
-        test = self.data.loc[self.data["CLASS"] == "TEST"]
-        self.log.info("Model %s training on %d molecules", model.model_name(), train.shape[0])
-        self.log.info("Model %s testing (fitting) on %d molecules", model.model_name(), test.shape[0])
-        return train, test
 

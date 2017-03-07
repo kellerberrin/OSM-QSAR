@@ -28,16 +28,16 @@ import os
 import sys
 import argparse
 import logging
-import math
 import time
 
-# Import the various classification models.
+# REad CSVs and Generate molecular properties.
+from OSMProperties import OSMGenerateData
+
+# Import the various model objects
 from OSMBase import get_model_instances
-from OSMProperties import OSMGenerateData, OSMModelData  # Generate molecular properties.
-from OSMKeras import SequentialModel, ModifiedSequential
-from OSMTemplate import OSMRegressionTemplate
-from OSMTemplate import OSMClassificationTemplate
-from OSMSKLearn import OSMSKLearnSVMR
+import OSMKeras
+import OSMTemplate
+import OSMSKLearn
 
 __version__ = "0.1"
 
@@ -201,19 +201,23 @@ class ExecEnv(object):
             ExecEnv.log.info(ExecEnv.list_available_models())
             sys.exit()
 
+        # Check for a valid model.
+        if ExecEnv.selected_model() is None:
+            ExecEnv.log.error('Unknown model prefix %s', ExecEnv.args.classifyType)
+            ExecEnv.log.info(ExecEnv.list_available_models())
+            sys.exit()
+
         # Check that the work directory exists and terminate if not.
         if not os.path.isdir(ExecEnv.args.workDirectory):
             ExecEnv.log.error('The OSM_QSAR work directory: "%s" does not exist.', ExecEnv.args.workDirectory)
             ExecEnv.log.error("Create or Rename the work directory.")
             ExecEnv.log.error('Please examine the --dir" and "--help" flags.')
-            ExecEnv.log.fatal("OSM_QSAR cannot continue.")
             sys.exit()
 
         # Check that the specified model postfix exists
         if ExecEnv.selected_model() is None:
             ExecEnv.log.warning("No classification model found for prefix: %s", ExecEnv.args.classifyType)
             ExecEnv.log.warning('Use the "--model" flag to see the available classification models.')
-            ExecEnv.log.fatal("OSM_QSAR cannot continue.")
             sys.exit()
 
         # Check to see if the postfix directory and subdirectories exist and create if necessary.
@@ -238,7 +242,6 @@ class ExecEnv(object):
         except OSError:
             ExecEnv.log.error("Could not create directory")
             ExecEnv.log.error("Check the work directory: %s permissions.", ExecEnv.args.workDirectory)
-            ExecEnv.log.fatal("OSM_QSAR cannot continue.")
             sys.exit()
 
         # clean the postfix subdirectories if the "--clean" flag is specified..
@@ -288,12 +291,10 @@ class ExecEnv(object):
         if not os.path.exists(ExecEnv.args.dataFilename):
             ExecEnv.log.error('The OSM_QSAR data file: "%s" does not exist.', ExecEnv.args.dataFilename)
             ExecEnv.log.error('Please examine the "--dir", "--data" and "--help" flags.')
-            ExecEnv.log.fatal("OSM_QSAR cannot continue.")
             sys.exit()
 
         # Set up the classification variables.
         ExecEnv.setup_variables()
-#        ExecEnv.args.activeNmols = self.classification_array(ExecEnv.args.activeNmols)
 
         cmd_line = ""
         for argStr in sys.argv:
@@ -322,10 +323,9 @@ class ExecEnv(object):
 
         return model_str
 
-
     @staticmethod
     def selected_model():
-        model = []
+        model = None
         for instance in ExecEnv.modelInstances:
             if instance.model_postfix() == ExecEnv.args.classifyType:
                 model = instance
@@ -369,17 +369,12 @@ class ExecEnv(object):
     @staticmethod
     def setup_variables():
 
-        if ExecEnv.args.dependVar == "default":
-            ExecEnv.args.dependVar = "pIC50" if ExecEnv.selected_model().model_is_regression() else "IC50_ACTIVITY"
-
-        if ExecEnv.args.indepList == "default":
-            ExecEnv.args.indepList = "MORGAN2048"
+        if ExecEnv.args.indepList == "default": return   # no var list required.
 
         var_list = [x.strip() for x in ExecEnv.args.indepList.split(',')]
         if len(var_list) == 0:
             ExecEnv.log.error('The "--indep" argument: %s  is incorrectly formatted.', ExecEnv.args.indepList)
             ExecEnv.log.error('Please examine the "--indep" and "--help" flags.')
-            ExecEnv.log.fatal("OSM_QSAR Cannot Continue.")
             sys.exit()
 
         ExecEnv.args.indepList = var_list
@@ -419,8 +414,14 @@ def main():
     except IOError:
         ExecEnv.log.fatal("File error. Check directories, file names and permissions."
                           ' Check the default work directory "--dir" and --help".')
+        ExecEnv.log.fatal("OSM_QSAR exits.")
 
     except SystemExit:
+
+        ExecEnv.log.info("OSM_QSAR exits.")
+
+    finally:
+
         clean_up = None  # Placeholder for any cleanup code.
 
 if __name__ == '__main__':

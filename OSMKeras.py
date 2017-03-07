@@ -25,13 +25,8 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
 from six import with_metaclass
 
-import os
-import sys
 
 import numpy as np
-import pandas as pd
-from matplotlib import cm
-import matplotlib.pyplot as plt
 
 from keras.models import Sequential
 from keras.layers import Dense
@@ -41,12 +36,10 @@ from keras.models import load_model
 from keras.constraints import maxnorm
 from keras.optimizers import SGD
 
-from rdkit import Chem
-from rdkit.Chem.Draw import SimilarityMaps
 
 from OSMBase import ModelMetaClass  # The virtual model class.
 from OSMRegression import OSMRegression  # Display and save regression results.
-from OSMProperties import OSMModelData, AccessData
+from OSMGraphics import OSMSimilarityMap
 
 
 # ===============================================================================
@@ -86,9 +79,24 @@ class KerasClassifier(OSMRegression):
             self.keras_train_default()
 
     def model_graphics(self):
-        self.model_similarity(self.data.testing(), self.args.testDirectory)
+
+        def keras_probability(fp, predict_func):
+            int_list = []
+
+            for arr in fp:
+                int_list.append(arr)
+
+            shape = []
+            shape.append(int_list)
+            fp_floats = np.array(shape, dtype=float)
+            prediction = predict_func(fp_floats, verbose=0)[0][0]  # returns a prediction (not probability)
+            return prediction * -1  # Flip the sign, -ve is good.
+
+        func = lambda x: keras_probability(x, self.model.predict)
+
+        OSMSimilarityMap(self.args, self.log, self, self.data.testing(), func).maps(self.args.testDirectory)
         if self.args.extendFlag:
-            self.model_similarity(self.data.training(), self.args.trainDirectory)
+            OSMSimilarityMap(self.args, self.log, self, self.data.testing(), func).maps(self.args.testDirectory)
 
 
 # ===============================================================================
@@ -100,7 +108,9 @@ class SequentialModel(with_metaclass(ModelMetaClass, KerasClassifier)):
     def __init__(self, args, log):
         super(SequentialModel, self).__init__(args, log)
 
-        self.arguments = { "DEPENDENT" : "pIC50", "INDEPENDENT" : ["MORGAN1024"] }
+        # define the model data view.
+        self.arguments = { "DEPENDENT" : { "VARIABLE" : "pIC50", "SHAPE" : (-1,), "TYPE": np.float64 }
+                         , "INDEPENDENT" : [ { "VARIABLE" : "MORGAN1024", "SHAPE": (-1,1024), "TYPE": np.float64 } ] }
 
     # These functions need to be re-defined in all classifier model classes.
 
@@ -113,12 +123,6 @@ class SequentialModel(with_metaclass(ModelMetaClass, KerasClassifier)):
     def model_description(self):
         return ("A KERAS (TensorFlow) based Neural Network classifier developed by Vito Spadavecchio.\n"
                 "The classifier uses 1024 bit Morgan molecular fingerprints in a single layer fully connected NN.")
-
-    def model_arguments(self):
-        return self.arguments
-
-    def model_create_data(self, data):
-        return OSMModelData(self.args, self.log, self, data)  # no normalization yet.
 
     def model_define(self):
 
@@ -145,51 +149,6 @@ class SequentialModel(with_metaclass(ModelMetaClass, KerasClassifier)):
                         , nb_epoch=1000, batch_size=45, verbose=1)
 
 
-######################################################################################################
-#
-# Optional member functions.
-#
-######################################################################################################
-
-
-        # Generate the png similarity diagrams for the test compounds.
-    def model_similarity(self, data, directory):
-
-        diagram_total = len(data.get_field("ID"))
-        self.log.info("Generating %d Similarity Diagrams in %s.......", diagram_total, directory)
-
-        def get_probability(fp, prob_func):
-            int_list = []
-
-            for arr in fp:
-                int_list.append(arr)
-
-            shape = []
-            shape.append(int_list)
-            fp_floats = np.array(shape, dtype=float)
-            prediction = prob_func(fp_floats, verbose=0)[0][0] #returns a prediction (not probability)
-            return prediction * -1 # Flip the sign, -ve is good.
-
-# Ensure that we are using 1024 bit morgan fingerprints.
-        def get_fingerprint(mol, atom):
-            return SimilarityMaps.GetMorganFingerprint(mol, atom, 4, 'bv', 1024)
-
-        diagram_count = 0
-        for idx in range(len(data.get_field("SMILE"))):
-            mol = Chem.MolFromSmiles(data.get_field("SMILE")[idx])
-            fig, weight = SimilarityMaps.GetSimilarityMapForModel(mol,
-                                                                  get_fingerprint,
-                                                                  lambda x: get_probability(x, self.model.predict),
-                                                                  colorMap=cm.bwr)
-            graph_file_name = data.get_field("ID")[idx] + "_sim_" + self.model_postfix() + ".png"
-            graph_path_name = os.path.join(directory, graph_file_name)
-            fig.savefig(graph_path_name, bbox_inches="tight")
-            plt.close(fig)  # release memory
-            diagram_count += 1
-            progress_line = "Processing similarity diagram {}/{}\r".format(diagram_count, diagram_total)
-            sys.stdout.write(progress_line)
-            sys.stdout.flush()
-
 # ===============================================================================
 # Modified sequential class is a multi layer neural network.
 # ===============================================================================
@@ -200,20 +159,21 @@ class ModifiedSequential(with_metaclass(ModelMetaClass, KerasClassifier)):
     def __init__(self, args, log):
         super(ModifiedSequential, self).__init__(args, log)
 
+        # define the model data view.
+        self.arguments = { "DEPENDENT" : { "VARIABLE" : "pIC50", "SHAPE" : (-1,), "TYPE": np.float64 }
+                         , "INDEPENDENT" : [ { "VARIABLE" : "MORGAN2048", "SHAPE": (-1,2048), "TYPE": np.float64 } ] }
+
     # These functions need to be re-defined in all classifier model classes.
 
     def model_name(self):
         return "Modified Sequential"
 
-
     def model_postfix(self):   # Must be unique for each model.
         return "mod"
-
 
     def model_description(self):
         return ("A KERAS (TensorFlow) multi-layer Neural Network classification model. \n"
                 "This classifier analyzes 2048 bit Morgan molecular fingerprints.")
-
 
     def model_define(self): # Defines the modified sequential class with regularizers defined.
     
@@ -235,59 +195,18 @@ class ModifiedSequential(with_metaclass(ModelMetaClass, KerasClassifier)):
         return model
 
 
-    def model_prediction(self, model, data):
-        predictions = model.predict(data["MORGAN2048"], verbose=0)
+    def model_prediction(self,data):
+        predictions = self.model.predict(data.input_data(), verbose=0)
         predictions_array = predictions.flatten()
-        return {"prediction": predictions_array, "actual": data["pEC50"]}
+        return {"prediction": predictions_array, "actual": data.target_data()}
 
 
-    def keras_train_epoch(self, model, train, epoch):
-        model.fit(train["MORGAN2048"], train["pEC50"], nb_epoch=epoch, batch_size=45, verbose=1)
+    def keras_train_epoch(self, epoch):
+        self.model.fit(self.data.training().input_data(), self.data.training().target_data()
+                       , nb_epoch=epoch, batch_size=45, verbose=1)
 
 
-    def keras_train_default(self, model, train):  # Reduced number of default training epoches.
-        model.fit(train["MORGAN2048"], train["pEC50"], nb_epoch=200, batch_size=45, verbose=1)
+    def keras_train_default(self, train):  # Reduced number of default training epoches.
+        self.model.fit(self.data.training().input_data(), self.data.training().target_data()
+                       , nb_epoch=200, batch_size=45, verbose=1)
 
-######################################################################################################
-#
-# Optional member functions.
-#
-######################################################################################################
-
-# Generate the png similarity diagrams for the test compounds.
-    def model_similarity(self, model, data, directory):
-
-        diagram_total = len(data["ID"])
-        self.log.info("Generating %d Similarity Diagrams in %s.......", diagram_total, directory)
-
-        def get_probability(fp, prob_func):
-            int_list = []
-
-            for arr in fp:
-                int_list.append(arr)
-
-            shape = []
-            shape.append(int_list)
-            fp_floats = numpy.array(shape, dtype=float)
-            prediction = prob_func(fp_floats, verbose=0)[0][0]   #returns an pEC50 prediction (not probability)
-            return prediction * -1.0 # Flip the sign, -ve is good.
-
-        # Ensure that we are using 2048 bit morgan fingerprints.
-        def get_fingerprint(mol, atom):
-            return SimilarityMaps.GetMorganFingerprint(mol, atom, 2, 'bv', 2048)
-
-        diagram_count = 0
-        for idx in range(len(data["SMILE"])):
-            mol = Chem.MolFromSmiles(data["SMILE"][idx])
-            fig, weight = SimilarityMaps.GetSimilarityMapForModel(mol,
-                                                                  get_fingerprint,
-                                                                  lambda x: get_probability(x, model.predict),
-                                                                  colorMap=cm.bwr)
-            graph_file_name = data["ID"][idx] + "_sim_" + self.model_postfix() + ".png"
-            graph_path_name = os.path.join(directory, graph_file_name)
-            fig.savefig(graph_path_name, bbox_inches="tight")
-            plt.close(fig) # release memory
-            diagram_count += 1
-            progress_line = "Processing similarity diagram {}/{}\r".format(diagram_count, diagram_total)
-            sys.stdout.write(progress_line)
-            sys.stdout.flush()

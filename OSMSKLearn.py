@@ -28,7 +28,7 @@ from six import with_metaclass
 import os
 import sys
 
-import numpy
+import numpy as np
 from matplotlib import cm
 import matplotlib.pyplot as plt
 
@@ -48,20 +48,23 @@ from rdkit.Chem.Draw import SimilarityMaps
 from OSMBase import ModelMetaClass  # The virtual model class.
 from OSMRegression import OSMRegression  # Display and save regression results.
 from OSMClassify import OSMClassification  # Display and save classifier results.
-from OSMUtility import OSMUtility
 
+from OSMGraphics import OSMSimilarityMap
 
 # A grab-bag of ML techniques implemented in SKLearn.
 
 ######################################################################################################
 #
-# Support Vector Machine Implemented as a regressor.
+# Support Vector Machine Implemented as a regression.
 #
 ######################################################################################################
 
 class OSMSKLearnSVMR(with_metaclass(ModelMetaClass, OSMRegression)):
     def __init__(self, args, log):
         super(OSMSKLearnSVMR, self).__init__(args, log)  # Edit this and change the class name.
+
+        self.arguments = { "DEPENDENT" : { "VARIABLE" : "pIC50", "SHAPE" : (-1,), "TYPE": np.float64 }
+                         , "INDEPENDENT" : [ { "VARIABLE" : "MORGAN2048", "SHAPE": None, "TYPE": np.float64 } ] }
 
     # These functions need to be re-defined in all classifier model classes.
 
@@ -79,42 +82,33 @@ class OSMSKLearnSVMR(with_metaclass(ModelMetaClass, OSMRegression)):
     def model_define(self):
         return svm.SVR(kernel=str("rbf"), C=1e3, gamma=0.00001)
 
-    def model_train(self, model, train):
-        model.fit(train["MORGAN2048"], train["pEC50"])
+    def model_train(self):
+        # Restrict the SVM to 1 input argument
+        self.model.fit(self.data.training().input_data(), self.data.training().target_data())
 
-    # should return a model, can just return model_define() if there is no model file.
+    # Just returns a model_define() and complains since there is no model file operation defined.
     def model_read(self, file_name):
         self.log.warn("%s model does not save to a model file, a new model was created", self.model_name())
         return self.model_define()
 
-    def model_write(self, model, file_name):
+    def model_write(self, file_name):
         self.log.warn("%s model write function not defined.", self.model_name())
         return
 
-    def model_prediction(self, model, data):
-        prediction = model.predict(data["MORGAN2048"])
-        return {"prediction": prediction, "actual": data["pEC50"]}
+    def model_prediction(self, data):
+        # Restrict the SVM to 1 input argument
+        prediction = self.model.predict(data.input_data())
+        return {"prediction": prediction, "actual": data.target_data()}
 
-    ######################################################################################################
-    #
-    # Optional member functions.
-    #
-    ######################################################################################################
+######################################################################################################
+#
+# Optional member functions.
+#
+######################################################################################################
 
-    def model_graphics(self, model, train, test):
-        self.model_similarity(model, test, self.args.testDirectory)
-        if self.args.extendFlag:
-            self.model_similarity(model, train, self.args.trainDirectory)
+    def model_graphics(self):
 
-
-            # Generate the png similarity diagrams for the test compounds.
-
-    def model_similarity(self, model, data, directory):
-
-        diagram_total = len(data["ID"])
-        self.log.info("Generating %d Similarity Diagrams in %s.......", diagram_total, directory)
-
-        def get_probability(fp, prob_func):
+        def svmr_probability(fp, predict_func):
             int_list = []
 
             for arr in fp:
@@ -122,29 +116,16 @@ class OSMSKLearnSVMR(with_metaclass(ModelMetaClass, OSMRegression)):
 
             shape = []
             shape.append(int_list)
-            fp_floats = numpy.array(shape, dtype=float)
-            prediction = prob_func(fp_floats)[0]  # returns an pEC50 prediction (not probability)
-            return prediction * -1.0  # Flip the sign, -ve is good.
+            fp_floats = np.array(shape, dtype=float)
+            prediction = predict_func(fp_floats)[0]  # returns a prediction (not probability)
+            return prediction * -1  # Flip the sign, -ve is good.
 
-        # Ensure that we are using 2048 bit morgan fingerprints.
-        def get_fingerprint(mol, atom):
-            return SimilarityMaps.GetMorganFingerprint(mol, atom, 2, 'bv', 2048)
+        func = lambda x: svmr_probability(x, self.model.predict)
 
-        diagram_count = 0
-        for idx in range(len(data["SMILE"])):
-            mol = Chem.MolFromSmiles(data["SMILE"][idx])
-            fig, weight = SimilarityMaps.GetSimilarityMapForModel(mol,
-                                                                  get_fingerprint,
-                                                                  lambda x: get_probability(x, model.predict),
-                                                                  colorMap=cm.bwr)
-            graph_file_name = data["ID"][idx] + "_sim_" + self.model_postfix() + ".png"
-            graph_path_name = os.path.join(directory, graph_file_name)
-            fig.savefig(graph_path_name, bbox_inches="tight")
-            plt.close(fig)  # release memory
-            diagram_count += 1
-            progress_line = "Processing similarity diagram {}/{}\r".format(diagram_count, diagram_total)
-            sys.stdout.write(progress_line)
-            sys.stdout.flush()
+        OSMSimilarityMap(self.args, self.log, self, self.data.testing(), func).maps(self.args.testDirectory)
+        if self.args.extendFlag:
+            OSMSimilarityMap(self.args, self.log, self, self.data.testing(), func).maps(self.args.testDirectory)
+
 
 
 ######################################################################################################
@@ -157,6 +138,10 @@ class OSMSKLearnSVMR(with_metaclass(ModelMetaClass, OSMRegression)):
 class OSMSKLearnSVMC(with_metaclass(ModelMetaClass, OSMClassification)):
     def __init__(self, args, log):
         super(OSMSKLearnSVMC, self).__init__(args, log)  # Edit this and change the class name.
+
+        # define the model data view.
+        self.arguments = { "DEPENDENT" : { "VARIABLE" : "IC50_ACTIVITY", "SHAPE" : (-1,), "TYPE": np.str }
+                         , "INDEPENDENT" : [ { "VARIABLE" : "MORGAN2048", "SHAPE": None, "TYPE": np.float64 } ] }
 
     # These functions need to be re-defined in all classifier model classes.
 
@@ -176,24 +161,26 @@ class OSMSKLearnSVMC(with_metaclass(ModelMetaClass, OSMClassification)):
 
     #        return svm.SVC(probability=True)
 
-    def model_train(self, model, train):  # convert to one hot, then train.
-        model.fit(train["MORGAN2048"], OSMUtility.data_classify(train["pEC50"], self.args.activeNmols))
+    def model_train(self):
+        # Restrict the SVM to 1 input argument
+        self.model.fit(self.data.training().input_data(), self.data.training().target_data())
 
-    # should return a model, can just return model_define() if there is no model file.
+    # Just returns a model_define() and complains since there is no model file operation defined.
     def model_read(self, file_name):
         self.log.warn("%s model does not save to a model file, a new model was created", self.model_name())
         return self.model_define()
 
-    def model_write(self, model, file_name):
+    def model_write(self, file_name):
         self.log.warn("%s model write function not defined.", self.model_name())
         return
 
-    def model_prediction(self, model, data):  # predictions and actual are returned as one hot vectors.
-        prediction = model.predict(data["MORGAN2048"])
-        return {"prediction": prediction, "actual": OSMUtility.data_classify(data["pEC50"], self.args.activeNmols)}
+    def model_prediction(self, data):
+        # Restrict the SVM to 1 input argument
+        prediction = self.model.predict(data.input_data())
+        return {"prediction": prediction, "actual": data.target_data()}
 
-    def model_probability(self, model, data):  # probabilities are returned as a numpy.shape = (samples, classes)
-        probability = model.predict_proba(data["MORGAN2048"])
+    def model_probability(self, data):  # probabilities are returned as a numpy.shape = (samples, classes)
+        probability = self.model.predict_proba(data.input_data())
         return {"probability": probability}
 
     ######################################################################################################
@@ -202,66 +189,22 @@ class OSMSKLearnSVMC(with_metaclass(ModelMetaClass, OSMClassification)):
     #
     ######################################################################################################
 
-    def model_graphics(self, model, train, test):
-        self.model_similarity(model, test, self.args.testDirectory)
-        if self.args.extendFlag:
-            self.model_similarity(model, train, self.args.trainDirectory)
+    def model_graphics(self):
 
-    # Generate the png similarity diagrams for the test compounds.
-    def model_similarity(self, model, data, directory):
-
-        diagram_total = len(data["ID"])
-        self.log.info("Generating %d Similarity Diagrams in %s.......", diagram_total, directory)
-
-        def get_probability(fp, prob_func):
+        def classifier_probability(fp, prob_func):
             int_list = []
 
             for arr in fp:
                 int_list.append(arr)
 
-            shape = []
-            shape.append(int_list)
-            fp_floats = numpy.array(shape, dtype=float)
-            active_prob = prob_func(fp_floats)[0][
-                0]  # returns an "active" probability (first element of the prob array).
+            shape = [int_list]
+            fp_floats = np.array(shape, dtype=float)
+            active_prob = prob_func(fp_floats)[0][0]  # returns an "active" probability (element[0]).
             return active_prob
 
-        # Ensure that we are using 2048 bit morgan fingerprints.
-        def get_fingerprint(mol, atom):
-            return SimilarityMaps.GetMorganFingerprint(mol, atom, 2, 'bv', 2048)
+        func = lambda x: classifier_probability(x, self.model.predict_proba)
 
-        diagram_count = 0
-        for idx in range(len(data["SMILE"])):
-            mol = Chem.MolFromSmiles(data["SMILE"][idx])
-            fig, weight = SimilarityMaps.GetSimilarityMapForModel(mol,
-                                                                  get_fingerprint,
-                                                                  lambda x: get_probability(x, model.predict_proba),
-                                                                  colorMap=cm.bwr)
-            graph_file_name = data["ID"][idx] + "_sim_" + self.model_postfix() + ".png"
-            graph_path_name = os.path.join(directory, graph_file_name)
-            fig.savefig(graph_path_name, bbox_inches="tight")
-            plt.close(fig)  # release memory
-            diagram_count += 1
-            progress_line = "Processing similarity diagram {}/{}\r".format(diagram_count, diagram_total)
-            sys.stdout.write(progress_line)
-            sys.stdout.flush()
+        OSMSimilarityMap(self.args, self.log, self, self.data.testing(), func).maps(self.args.testDirectory)
+        if self.args.extendFlag:
+            OSMSimilarityMap(self.args, self.log, self, self.data.testing(), func).maps(self.args.testDirectory)
 
-    # Plot of a ROC curve for a specific class
-
-    def model_ROC(self, model, data):
-
-        plt.figure()
-        lw = 2
-        plt.plot(fpr[2], tpr[2], color='darkorange', lw=lw, label='ROC curve (area = %0.2f)' % roc_auc[2])
-        plt.plot([0, 1], [0, 1], color='navy', lw=lw, linestyle='--')
-        plt.xlim([0.0, 1.0])
-        plt.ylim([0.0, 1.05])
-        plt.xlabel('False Positive Rate')
-        plt.ylabel('True Positive Rate')
-        plt.title('Receiver Operating Characteristic "svmc"')
-        plt.legend(loc="lower right")
-        plt.show()
-        graph_file_name = "svmc_roc_" + self.model_postfix() + ".png"
-        graph_path_name = os.path.join(self.args.graphicsDirectory, graph_file_name)
-        plt.savefig(graph_path_name, bbox_inches="tight")
-        plt.close()  # release memory

@@ -24,6 +24,8 @@
 #
 from __future__ import absolute_import, division, print_function, unicode_literals
 
+from OSMModelData import OSMModelData
+
 # ============================================================================
 #  A register of classifier models implemented as a dictionary
 # ============================================================================
@@ -111,7 +113,7 @@ class OSMBaseModel(object):
     def classify(self, data):
 
         self.model = self.create_model()
-        self.data = self.model_create_data(data)
+        self.data = OSMModelData(self.args, self.log, self, data) # create a "model-centric" view of the data.
 
         # Train the model.
         if self.args.retrainFilename != "noretrain" or self.args.loadFilename == "noload":
@@ -146,6 +148,8 @@ class OSMBaseModel(object):
 
         return model
 
+    def model_arguments(self):
+        return self.arguments
 
     #####################################################################################
     #
@@ -153,11 +157,11 @@ class OSMBaseModel(object):
     #
     #####################################################################################
 
-    def model_arguments(self): return {}
-
     def model_is_regression(self): return False   # re-defined in OSMRegression
 
     def model_is_classifier(self): return False   # re-defined in  OSMClassification
+
+    def model_is_unsupervised(self): return False   # re-defined in  OSMUnsupervised
 
     # Necessary because we need to create the model singletons before the args are ready.
     def model_update_environment(self, args): self.args = args
@@ -167,5 +171,3 @@ class OSMBaseModel(object):
 
     # Is model I/O defined? (True by default)
     def model_can_write(self): return True
-
-    def model_create_data(self, data): pass  # create a data view for this model.

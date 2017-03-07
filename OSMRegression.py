@@ -70,8 +70,8 @@ class OSMRegression(OSMBaseModel):
         self.model_write_statistics()
 
     def model_log_statistics(self):
-        self.log_train_statistics(self.data.training())
-        self.log_test_statistics(self.data.testing())
+        self.log_train_statistics(self.data.training(), self.train_stats, self.train_predictions)
+        self.log_test_statistics(self.data.testing(), self.test_stats, self.test_predictions)
 
     def model_write_statistics(self):
         self.write_statistics(self.data.training(), self.train_stats, self.train_predictions, self.args.trainDirectory)
@@ -112,45 +112,82 @@ class OSMRegression(OSMBaseModel):
         return {"MUE": MUE, "RMSE": RMSE, "predict_ranks": predict_ranks,
                 "actual_ranks": actual_ranks, "kendall": kendall, "spearman": spearman}
 
+
+    def model_prediction_records(self, data, predictions, statistics):
+
+        prediction_list = []
+        for idx in range(len(data.get_field("ID"))):
+            prediction_record = []
+            prediction_record.append(data.get_field("ID")[idx])
+            prediction_record.append(statistics["actual_ranks"][idx])
+            prediction_record.append(statistics["predict_ranks"][idx])
+            prediction_record.append(predictions["actual"][idx])
+            prediction_record.append(predictions["prediction"][idx])
+            prediction_record.append(data.get_field("SMILE")[idx])
+
+            prediction_list.append(prediction_record)
+
+        # Sort by actual ranking.
+        sorted_predict_list= sorted(prediction_list, key=lambda predict_record: predict_record[1])
+
+        return sorted_predict_list
+
+
     #####################################################################################
     #
     # Local member functions
     #
     #####################################################################################
 
-    def log_train_statistics(self, train):
+    def log_train_statistics(self, train, statistics, predictions):
 
-        self.log.info("Training Compounds pIC50 Mean Unsigned Error (MUE): %f", self.train_stats["MUE"])
-        self.log.info("Training Compounds pIC50 RMS Error: %f", self.train_stats["RMSE"])
+        self.log.info("Training Compounds Mean Unsigned Error (MUE): %f", self.train_stats["MUE"])
+        self.log.info("Training Compounds RMS Error: %f", self.train_stats["RMSE"])
 
     # Display the classification results and write to the log file.
-    def log_test_statistics(self, test):
+    def log_test_statistics(self, data, statistics, predictions):
         """Display all the calculated statistics for each model; run"""
 
-        self.log.info("Test Compounds pIC50 Mean Unsigned Error (MUE): %f", self.test_stats["MUE"])
-        self.log.info("Test Compounds pIC50 RMS Error: %f", self.test_stats["RMSE"])
+        independent_list = []
+        for var in self.model_arguments()["INDEPENDENT"]:
+            independent_list.append(var["VARIABLE"])
+        dependent_var = self.model_arguments()["DEPENDENT"]["VARIABLE"]
+
+        self.log.info("Dependent (Target) Variable: %s", dependent_var)
+        for var in independent_list:
+            self.log.info("Independent (Input) Variable(s): %s", var)
+
+        self.log.info("Test Compounds %s Mean Unsigned Error (MUE): %f", dependent_var, statistics["MUE"])
+        self.log.info("Test Compounds %s RMS Error: %f", dependent_var, statistics["RMSE"])
 
         self.log.info("Test Compounds Kendall's Rank Coefficient (tau): %f, p-value: %f",
-                      self.test_stats["kendall"]["tau"], self.test_stats["kendall"]["p-value"])
+                      statistics["kendall"]["tau"], statistics["kendall"]["p-value"])
         self.log.info("Test Compounds Spearman Coefficient (rho): %f, p-value: %f",
-                      self.test_stats["spearman"]["rho"], self.test_stats["spearman"]["p-value"])
-        self.log.info("Test Compounds pIC50 Mean Unsigned Error (MUE): %f", self.test_stats["MUE"])
+                      statistics["spearman"]["rho"], statistics["spearman"]["p-value"])
+        self.log.info("Test Compounds %s Mean Unsigned Error (MUE): %f", dependent_var, statistics["MUE"])
         self.log.info("Test Compounds Results")
-        self.log.info("ID, Tested Rank, Pred. Rank, Tested pIC50, Pred. pIC50")
+        self.log.info("ID, Tested Rank, Pred. Rank, Tested %s, Pred. %s", dependent_var, dependent_var)
         self.log.info("======================================================")
 
-        for idx in range(len(test.get_field("ID"))):
-            self.log.info("%s, %d, %d, %f, %f", test.get_field("ID")[idx],
-                          self.test_stats["actual_ranks"][idx],
-                          self.test_stats["predict_ranks"][idx],
-                          self.test_predictions["actual"][idx],
-                          self.test_predictions["prediction"][idx])
+        predict_list = self.model_prediction_records(data, predictions, statistics)
+
+        for idx in range(len(predict_list)):
+            line = "{:10s} {:4.1f} {:4.1f} {:10.4f} {:10.4f}".format(predict_list[idx][0],
+                                                                 predict_list[idx][1],
+                                                                 predict_list[idx][2],
+                                                                 predict_list[idx][3],
+                                                                 predict_list[idx][4])
+            self.log.info(line)
 
     def write_statistics(self, data, statistics, predictions, directory):
 
         # Open the statistics file and append the model results statistics.
 
         stats_filename = os.path.join(directory, self.args.statsFilename)
+        independent_list = []
+        for var in self.model_arguments()["INDEPENDENT"]:
+            independent_list.append(var["VARIABLE"])
+        dependent_var = self.model_arguments()["DEPENDENT"]["VARIABLE"]
         try:
 
             with open(stats_filename, 'a') as stats_file:
@@ -159,6 +196,11 @@ class OSMRegression(OSMBaseModel):
                 stats_file.write(line)
                 line = "Model, {}\n".format(self.model_name())
                 stats_file.write(line)
+                line = "DependentVar(Target), {}\n".format(dependent_var)
+                stats_file.write(line)
+                for var in independent_list:
+                    line = "IndependentVar(Input), {}\n".format(var)
+                    stats_file.write(line)
                 line = "Runtime, {}\n".format(time.asctime(time.localtime(time.time())))
                 stats_file.write(line)
                 line = "CPUtime, {}\n".format(time.clock())
@@ -175,16 +217,19 @@ class OSMRegression(OSMBaseModel):
                 line = "Spearman, {}, {}\n".format(statistics["spearman"]["rho"],
                                                    statistics["spearman"]["p-value"])
                 stats_file.write(line)
-                line = "ID, Rank, Pred_Rank, Tested_pEC50, Pred_pEC50, Tested_Active, Pred_Active, SMILE\n"
+                line = "ID, Rank, Pred_Rank, Tested_{}, Pred_{}, Tested_Active, Pred_Active, SMILE\n".format(
+                                                                                    dependent_var, dependent_var)
                 stats_file.write(line)
 
+                predict_list = self.model_prediction_records(data, predictions, statistics)
+
                 for idx in range(len(data.get_field("ID"))):
-                    line = "{}, {}, {}, {}, {}, {}\n".format(data.get_field("ID")[idx],
-                                                             statistics["actual_ranks"][idx],
-                                                             statistics["predict_ranks"][idx],
-                                                             predictions["actual"][idx],
-                                                             predictions["prediction"][idx],
-                                                             data.get_field("SMILE")[idx])
+                    line = "{}, {}, {}, {}, {}, {}\n".format(predict_list[idx][0],
+                                                             predict_list[idx][1],
+                                                             predict_list[idx][2],
+                                                             predict_list[idx][3],
+                                                             predict_list[idx][4],
+                                                             predict_list[idx][5])
                     stats_file.write(line)
 
         except IOError:

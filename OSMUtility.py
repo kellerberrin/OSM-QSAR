@@ -37,48 +37,14 @@ class OSMUtility(object):
 
     def __init__(self): pass
 
-    # Accepts a list (array) of pEC50 values and returns a list (array) of classification text labels.
-    #  args.activeNmols is a list (array) of pEC50 nMol potency sorted tuples [(potency, "class"), ...]
-    @staticmethod
-    def data_text(value_array, classes):
-
-        class_array = []
-        for x in value_array:
-
-            if x <= classes[0][0]:
-                class_str = classes[0][1]
-            else:
-                class_str = "inactive"
-
-            if len(classes) > 1:
-                for idx in range(len(classes) - 1):
-                    if x > classes[idx][0] and x <= classes[idx + 1][0]:
-                        class_str = classes[idx + 1][1]
-
-            class_array.append(class_str)
-
-        return class_array
-
-    # Returns a text list of defined potency classification classes, including the implied "inactive" class.
-    @staticmethod
-    def enumerate_classes(potency_classes):
-
-        class_array = []
-
-        for potency_class in potency_classes:
-            class_array.append(potency_class[1])
-
-        class_array.append("inactive")
-
-        return class_array
 
     # Accepts a numpy.ndarray of probabilities shape = (n_samples, n_classes)
     # Returns a text list of potency classes.
     @staticmethod
-    def probability_text(prob_list, potency_classes):
+    def probability_text(prob_list, training_classes):
         if len(prob_list) == 0:
             return prob_list
-        text_classes = OSMUtility.enumerate_classes(potency_classes)
+        text_classes = training_classes
         if isinstance(prob_list, numpy.ndarray):
             class_list = []
             for x in prob_list:
@@ -95,36 +61,13 @@ class OSMUtility(object):
     # Accepts a list (not a numpy.ndarray!) of one hot classifications, or if only 2 potency classes,
     # a single binary list. Returns a text list of potency classes.
     @staticmethod
-    def one_hot_text(one_hot_labels, potency_classes):
-        if len(one_hot_labels) == 0:
+    def one_hot_text(one_hot_labels, training_classes):
             return one_hot_labels
-
-        text_classes = OSMUtility.enumerate_classes(potency_classes)
-        if not isinstance(one_hot_labels[0], list) and len(text_classes) == 2:
-            return [text_classes[0 if x == 0 else 1] for x in one_hot_labels]
-
-        elif isinstance(one_hot_labels[0], list) and len(one_hot_labels[0]) == 1 and len(text_classes) == 2:
-            return [text_classes[0 if x[0] == 0 else 1] for x in one_hot_labels]
-
-        else:
-            class_list = []
-            for x in one_hot_labels:
-                found_class = False
-                for idx in range(len(x)):
-                    if x[idx] > 0:
-                        class_list.append(text_classes[idx])
-                        found_class = True
-                        continue
-                if not found_class:
-                    class_list.append("no classify")
-
-            return class_list
 
     # Return the one hot classifications including one hot singletons.
     @staticmethod
-    def data_one_hot(data, potency_classes):
-        hot_one_labels = label_binarize(OSMUtility.data_text(data,potency_classes)
-                                        , classes=OSMUtility.enumerate_classes(potency_classes))
+    def data_one_hot(data, training_classes):
+        hot_one_labels = label_binarize(data, training_classes)
         return hot_one_labels
 
     # Flatten a list of one hot singletons to a binary list, otherwise SKLearn classifiers complain.
@@ -141,5 +84,5 @@ class OSMUtility(object):
 
     # Present data to a SKLearn classifier with flattened binary singletons.
     @staticmethod
-    def data_classify(data, potency_classes):
-        return OSMUtility.flatten_one_hot(OSMUtility.data_one_hot(data, potency_classes))
+    def data_classify(data, training_classes):
+        return OSMUtility.flatten_one_hot(OSMUtility.data_one_hot(data, training_classes))

@@ -25,6 +25,7 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
 
 import os
+import sys
 import time
 
 import math
@@ -57,31 +58,52 @@ class OSMClassification(OSMBaseModel):
     def model_is_classifier(self):
         return True
 
-    def model_classification_results(self, model, train, test):
-        self.train_predictions = self.model_prediction(model, train)  # Returns a dict. with "prediction" and "actual"
-        self.train_probability = self.model_probability(model, train)  # Returns a dict. with "probability"
+    def model_enumerate_classes(self):
+
+        class_set = set(self.data.training().target_data())
+        test_class_set = set(self.data.testing().target_data())
+        if not test_class_set <= class_set:
+            self.log.error("There are test classes %s that are not in the training class set %s",
+                           ",".join(list(test_class_set)), ",".join(list(class_set)))
+            self.log.fatal("OSM_QSAR cannot continue.")
+            sys.exit()
+        class_list = list(class_set)  # convert back to set
+        sorted_class_list = sorted(class_list)   # ascending sort.
+        return sorted_class_list
+
+    def model_classification_results(self):
+        self.train_predictions = self.model_prediction(self.data.training())  # Returns a dict. with "prediction" and "actual"
+        self.train_probability = self.model_probability(self.data.training())  # Returns a dict. with "probability"
         self.train_stats = self.model_accuracy(self.train_predictions, self.train_probability)  # dictionary of stats
 
-        self.test_predictions = self.model_prediction(model, test)  # Returns a dict. with "prediction" and "actual"
-        self.test_probability = self.model_probability(model, test)  # Returns a dict. with "probability"
+        self.test_predictions = self.model_prediction(self.data.testing())  # Returns a dict. with "prediction" and "actual"
+        self.test_probability = self.model_probability(self.data.testing())  # Returns a dict. with "probability"
         self.test_stats = self.model_accuracy(self.test_predictions, self.test_probability)  # dictionary of stats
         # Send statistics to the console and log file.
-        self.model_log_statistics(model, train, test)
+        self.model_log_statistics()
         # Generate graphics (only if the virtual function defined at model level).
-        self.model_graphics(model, train, test)
+        self.model_graphics()
         # Append statistics to the stats file.
-        self.model_write_statistics(model, train, test)
+        self.model_write_statistics()
 
-    def model_log_statistics(self, model, train, test):
-        self.log_train_statistics(model, train)
-        self.log_test_statistics(model, test)
+    def model_log_statistics(self):
+        self.log_train_statistics(self.data.training(),
+                                  self.train_stats,
+                                  self.train_predictions,
+                                  self.train_probability)
+        self.log_test_statistics(self.data.testing(),
+                                 self.test_stats,
+                                 self.test_predictions,
+                                 self.test_probability)
 
-    def model_write_statistics(self, model, train, test):
-        self.write_statistics(model, train, self.train_stats,
+    def model_write_statistics(self):
+        self.write_statistics(self.data.training(),
+                              self.train_stats,
                               self.train_predictions,
                               self.train_probability,
                               self.args.trainDirectory)
-        self.write_statistics(model, test, self.test_stats,
+        self.write_statistics(self.data.testing(),
+                              self.test_stats,
                               self.test_predictions,
                               self.test_probability,
                               self.args.testDirectory)
@@ -98,8 +120,8 @@ class OSMClassification(OSMBaseModel):
         #        auc_stat = auc(predict, actual)
         auc_stat = 0
 
-        actual_text = OSMUtility.one_hot_text(actual, self.args.activeNmols)
-        predict_text = OSMUtility.probability_text(probabilities, self.args.activeNmols)
+        actual_text = OSMUtility.one_hot_text(actual, self.model_enumerate_classes())
+        predict_text = OSMUtility.probability_text(probabilities, self.model_enumerate_classes())
 
         # Return the model analysis statistics in a dictionary.
         return {"AUC": auc_stat, "actual": actual, "predict": predict, "prob_rank": probability_ranks,
@@ -111,27 +133,27 @@ class OSMClassification(OSMBaseModel):
     #
     #####################################################################################
 
-    def log_train_statistics(self, model, train):
+    def log_train_statistics(self, data, statistics, predictions, probabilities):
 
-        self.log.info("Training Compounds Area Under Curve (AUC): %f", self.train_stats["AUC"])
+        self.log.info("Training Compounds Area Under Curve (AUC): %f", statistics["AUC"])
 
     # Display the classification results and write to the log file.
-    def log_test_statistics(self, model, data):
+    def log_test_statistics(self, data, statistics, predictions, probabilities):
         """Display all the calculated statistics for each model; run"""
 
-        self.log.info("Test Compounds Area Under Curve: %f", self.test_stats["AUC"])
+        self.log.info("Test Compounds Area Under Curve: %f", statistics["AUC"])
         self.log.info("ID, Actual Class, Pred. Class, Prob. Active, Prob. Rank")
         self.log.info("===================================================================================")
 
-        for idx in range(len(data["ID"])):
-            self.log.info("%s, %s, %s, %f, %d", data["ID"][idx],
+        for idx in range(len(data.get_field("ID"))):
+            self.log.info("%s, %s, %s, %f, %d", data.get_field("ID")[idx],
                           self.test_stats["actual_text"][idx],
                           self.test_stats["predict_text"][idx],
                           self.test_probability["probability"][idx][0],
                           self.test_stats["prob_rank"][idx])
 
     # Open the statistics file and append the model results statistics.
-    def write_statistics(self, model, data, statistics, predictions, probabilities, directory):
+    def write_statistics(self, data, statistics, predictions, probabilities, directory):
 
         stats_filename = os.path.join(directory, self.args.statsFilename)
         try:
@@ -151,21 +173,21 @@ class OSMClassification(OSMBaseModel):
                 line = "AUC, {}\n".format(statistics["AUC"])
                 stats_file.write(line)
                 line = "ID, Actual_Class, Pred_Class "
-                classes = OSMUtility.enumerate_classes(self.args.activeNmols)
+                classes = self.model_enumerate_classes()
                 for cls in classes:
                     line += ", Prob_" + cls
                 line += ", SMILE\n"
                 stats_file.write(line)
 
-                for idx in range(len(data["ID"])):
-                    line = "{}, {}, {}".format(data["ID"][idx],
+                for idx in range(len(data.get_field("ID"))):
+                    line = "{}, {}, {}".format(data.get_field("ID")[idx],
                                                statistics["actual_text"][idx],
                                                statistics["predict_text"][idx])
 
                     for cls_idx in range(probabilities["probability"][idx].size):
                         line += ", {}".format(probabilities["probability"][idx][cls_idx])
 
-                    line += ", {}\n".format(data["SMILE"][idx])
+                    line += ", {}\n".format(data.get_field("SMILE")[idx])
 
                     stats_file.write(line)
 

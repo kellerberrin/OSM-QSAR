@@ -176,7 +176,7 @@ Gotchas and Annoyances.
 The Google Neural Network classifier TENSORFLOW is currently under intense development 
 and the release candidates are not always stable.
 The python 3.5 version I downloaded using conda emitted some annoying but harmless error messages.
-You could always try downloading TENSORFLOW using pip or pip3. See the installation information
+You could always try downloading Tensorflow using pip or pip3. See the installation information
 on the TENSORFLOW website.
 
 (yourenvname) >python -m pip install tensorflow

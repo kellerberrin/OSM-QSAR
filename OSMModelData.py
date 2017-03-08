@@ -33,7 +33,6 @@ import copy
 from OSMProperties import OSMGenerateData
 
 # ===================================================================================================
-#
 # Presents the 'model-centric' view of the data.
 #
 # ===================================================================================================
@@ -49,10 +48,10 @@ class OSMModelData(object):
         self.train, self.test = self.setup_model_data()
 
     def training(self):  # Access training data (returns the adapter class).
-        return AccessData(self.args, self.log, self.train, self.model_args)
+        return AccessData(self, self.train)
 
     def testing(self):   # Access the test (target) data (returns the adapter class).
-        return AccessData(self.args, self.log, self.test, self.model_args)
+        return AccessData(self, self.test)
 
 ########################################################################################################
 # Local member functions.
@@ -93,39 +92,40 @@ class OSMModelData(object):
 
         arg_shape =arg["SHAPE"]
 
-        if arg_shape is None: return    # no shape checking
+        if arg_shape is None: return    # No shape checking
 
-        df_shape = self.model_df[arg["VARIABLE"]].shape
+        if len(arg_shape) == 1 and arg_shape[0] == 1:  # Check if we require a scalar
 
-        if arg_shape[0] >= 0:
-            if arg_shape[0] != df_shape[0]:
-                self.log.error("Variable %s requires %d rows, data frame has %d."
-                               , arg["VARIABLE"], arg_shape[0], df_shape[0])
+            if not isinstance(self.model_df[arg["VARIABLE"]][0], np.ndarray):  # Numpy must have shape (1,)
+                return
+            else:
+                # Assume we have a list of numpy.arrays, only check the first element
+                df_shape = list(self.model_df[arg["VARIABLE"]][0].shape)
+                if len(df_shape) == 1 and df_shape[0] == 1:
+                    return
+                else:
+                    self.log.error("Expecting scalar variable %s, got numpy array.", arg["VARIABLE"])
+                    sys.exit()
+
+        # Assume we have a list of numpy.arrays, only check the first element
+        df_shape = list(self.model_df[arg["VARIABLE"]][0].shape)
+
+        # Check that the shapes have the same dimension
+
+        if len(df_shape) != len(arg_shape):
+            self.log.error("Variable %s has dimension %d, expecting dimension %d."
+                           , arg["VARIABLE"], len(df_shape), len(arg_shape))
+            sys.exit()
+
+        for idx in range(len(arg_shape)):
+
+            if arg_shape[idx] is None: continue
+
+            if arg_shape[idx] != df_shape[idx]:
+                self.log.error("Variable %s[%d] has shape %d, model requires %d.", arg["VARIABLE"],
+                               idx, df_shape[idx], arg_shape[idx])
                 sys.exit()
 
-        if self.model_df[arg["VARIABLE"]].shape[0] == 0:
-            self.log.error("No valid rows for variable %s", arg["VARIABLE"])
-            sys.exit()
-
-
-        if len(arg_shape) > 1:          # note we can only store lists of numpys in pd.data_frames (why?)
-
-                # Get the shape of the first data item (assumed to be a numpy.array).
-            var_shape = self.model_df[arg["VARIABLE"]][0].shape
-
-            for idx in range(len(arg_shape)-1):
-
-                if arg_shape[idx+1] < 0:
-                    continue
-                else:
-                    if arg_shape[idx+1] != var_shape[idx]:
-                        self.log.error("Variable %s[%d] has shape %d, model requires %d.", arg["VARIABLE"], idx+1
-                                        , var_shape[idx], arg_shape[idx+1])
-                        sys.exit()
-
-        elif isinstance(self.model_df[arg["VARIABLE"]][0], np.ndarray):  # Unexpected numpy.
-            self.log.error("Expecting scalar variable %s, got numpy array.", arg["VARIABLE"])
-            sys.exit()
 
     def convert_type(self, arg):
 
@@ -138,6 +138,11 @@ class OSMModelData(object):
                     self.log.error("Problem converting variable %s to floats", arg["VARIABLE"])
                     sys.exit()
             elif arg["TYPE"] == np.str:
+
+                if isinstance(self.model_df[arg["VARIABLE"]][0], np.float64):
+                    self.log.error("Variable %s is a float, model specifies a string (class)", arg["VARIABLE"])
+                    sys.exit()
+
                 self.model_df[arg["VARIABLE"]].replace("", np.nan, inplace=True) # Convert empty fields to NaNs
             else:
                 self.model_df[arg["VARIABLE"]].replace("", np.nan, inplace=True) # Convert empty fields to NaNs
@@ -160,11 +165,11 @@ class OSMModelData(object):
 
 class AccessData(object): # The adapter class actually used to return data to the model.
 
-    def __init__(self, args, log, data, model_args):
-        self.log = log
-        self.args = args
+    def __init__(self, model_data_obj, data):
+        self.log = model_data_obj.log
+        self.args = model_data_obj.args
+        self.model_args = model_data_obj.model_args
         self.data = data
-        self.model_args = model_args
 
     def get_field(self, var):
         return self.data[var].tolist()

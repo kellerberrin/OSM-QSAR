@@ -30,7 +30,7 @@ import time
 
 import math
 import scipy.stats as st
-from sklearn.metrics import auc
+import sklearn.metrics
 
 from OSMBase import OSMBaseModel
 from OSMUtility import OSMUtility
@@ -123,9 +123,36 @@ class OSMClassification(OSMBaseModel):
         actual_text = OSMUtility.one_hot_text(actual, self.model_enumerate_classes())
         predict_text = OSMUtility.probability_text(probabilities, self.model_enumerate_classes())
 
+        confusion = sklearn.metrics.confusion_matrix(actual_text, predict_text)
+
         # Return the model analysis statistics in a dictionary.
         return {"AUC": auc_stat, "actual": actual, "predict": predict, "prob_rank": probability_ranks,
-                "actual_text": actual_text, "predict_text": predict_text}
+                "actual_text": actual_text, "predict_text": predict_text, "confusion" : confusion }
+
+
+    def model_prediction_records(self, data, statistics, predictions, probabilities):
+
+        classes = self.model_enumerate_classes()
+        prediction_list = []
+        for idx in range(len(data.get_field("ID"))):
+            prediction_record = []
+            prediction_record.append(data.get_field("ID")[idx])
+            prediction_record.append(statistics["actual_text"][idx])
+            prediction_record.append(statistics["predict_text"][idx])
+            prediction_record.append(statistics["prob_rank"][idx])
+            prediction_record.append(data.get_field("SMILE")[idx])
+            prob_list = []
+            for cls_idx in range(len(classes)):
+                prob_list.append(probabilities["probability"][idx][cls_idx])
+            prediction_record.append(prob_list)
+
+            prediction_list.append(prediction_record)
+
+        # Sort by actual ranking (inverse order).
+        sorted_predict_list= sorted(prediction_list, key=lambda predict_record: (predict_record[5][0] * -1))
+
+        return sorted_predict_list
+
 
     #####################################################################################
     #
@@ -140,24 +167,47 @@ class OSMClassification(OSMBaseModel):
     # Display the classification results and write to the log file.
     def log_test_statistics(self, data, statistics, predictions, probabilities):
         """Display all the calculated statistics for each model; run"""
-
+        classes = self.model_enumerate_classes()
         self.log.info("Test Compounds Area Under Curve: %f", statistics["AUC"])
-        self.log.info("ID, Actual Class, Pred. Class, Prob. Active, Prob. Rank")
+        independent_list = []
+        for var in self.model_arguments()["INDEPENDENT"]:
+            independent_list.append(var["VARIABLE"])
+        dependent_var = self.model_arguments()["DEPENDENT"]["VARIABLE"]
+
+        self.log.info("Dependent (Target) Variable: %s", dependent_var)
+        for var in independent_list:
+            self.log.info("Independent (Input) Variable(s): %s", var)
+        self.log.info("+++++++++++++++ Confusion matrix +++++++++++++++++++++++")
+        line = "true/predict  "
+        for a_class in classes:
+            line += "{:10s}".format(a_class)
+        self.log.info(line)
+        for rowidx in range(len(statistics["confusion"])):
+            line = "{:10s}".format(classes[rowidx])
+            for colidx in range(len(statistics["confusion"][rowidx])):
+                line += "{:8d}".format(statistics["confusion"][rowidx][colidx])
+            self.log.info(line)
+        self.log.info("ID, Actual Class, Pred. Class, Prob. Rank, Prob. %s", classes[0])
         self.log.info("===================================================================================")
 
-        for idx in range(len(data.get_field("ID"))):
-            self.log.info("%s, %s, %s, %f, %d", data.get_field("ID")[idx],
-                          self.test_stats["actual_text"][idx],
-                          self.test_stats["predict_text"][idx],
-                          self.test_probability["probability"][idx][0],
-                          self.test_stats["prob_rank"][idx])
+        sorted_records = self.model_prediction_records(data, statistics, predictions, probabilities)
+
+        for record in sorted_records:
+            line = "{:10s} {:10s} {:10s} {:3.1f}   {:8.7f}".format(record[0], record[1],
+                                                                   record[2], record[3], record[5][0])
+            self.log.info(line)
 
     # Open the statistics file and append the model results statistics.
     def write_statistics(self, data, statistics, predictions, probabilities, directory):
 
         stats_filename = os.path.join(directory, self.args.statsFilename)
+        independent_list = []
+        for var in self.model_arguments()["INDEPENDENT"]:
+            independent_list.append(var["VARIABLE"])
+        dependent_var = self.model_arguments()["DEPENDENT"]["VARIABLE"]
         try:
 
+            classes = self.model_enumerate_classes()
             with open(stats_filename, 'a') as stats_file:
 
                 line = "****************,Classification,******************\n"
@@ -168,26 +218,45 @@ class OSMClassification(OSMBaseModel):
                 stats_file.write(line)
                 line = "CPUtime, {}\n".format(time.clock())
                 stats_file.write(line)
-                line = "++++++++++++++++,Test Statistics,++++++++++++++++\n"
+                line = "DependentVar(Target), {}\n".format(dependent_var)
+                stats_file.write(line)
+                for var in independent_list:
+                    line = "IndependentVar(Input), {}\n".format(var)
+                    stats_file.write(line)
+                line = "++++++++++++++++,Test_Statistics,++++++++++++++++\n"
                 stats_file.write(line)
                 line = "AUC, {}\n".format(statistics["AUC"])
                 stats_file.write(line)
-                line = "ID, Actual_Class, Pred_Class "
-                classes = self.model_enumerate_classes()
+                stats_file.write("Confusion matrix\n")
+                line = "true/predict"
+                for a_class in classes:
+                    line += ",{}".format(a_class)
+                line += "\n"
+                stats_file.write(line)
+                for rowidx in range(len(statistics["confusion"])):
+                    line = "{}".format(classes[rowidx])
+                    for colidx in range(len(statistics["confusion"][rowidx])):
+                        line += ",{}".format(statistics["confusion"][rowidx][colidx])
+                    line += "\n"
+                    stats_file.write(line)
+
+                sorted_records = self.model_prediction_records(data, statistics, predictions, probabilities)
+
+                line = "++++++++++++++++,Compound_Statistics,++++++++++++++++\n"
+                stats_file.write(line)
+                line = "ID, Actual_Class, Pred_Class"
                 for cls in classes:
                     line += ", Prob_" + cls
                 line += ", SMILE\n"
                 stats_file.write(line)
 
-                for idx in range(len(data.get_field("ID"))):
-                    line = "{}, {}, {}".format(data.get_field("ID")[idx],
-                                               statistics["actual_text"][idx],
-                                               statistics["predict_text"][idx])
+                for record in sorted_records:
+                    line = "{}, {}, {}".format(record[0], record[1], record[2])
 
-                    for cls_idx in range(probabilities["probability"][idx].size):
-                        line += ", {}".format(probabilities["probability"][idx][cls_idx])
+                    for cls_idx in range(len(classes)):
+                        line += ", {}".format(record[5][cls_idx])
 
-                    line += ", {}\n".format(data.get_field("SMILE")[idx])
+                    line += ", {}\n".format(record[4])
 
                     stats_file.write(line)
 

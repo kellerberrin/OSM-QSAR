@@ -94,9 +94,9 @@ class KerasClassifier(OSMRegression):
 
         func = lambda x: keras_probability(x, self.model.predict)
 
-        OSMSimilarityMap(self.args, self.log, self, self.data.testing(), func).maps(self.args.testDirectory)
+        OSMSimilarityMap(self, self.data.testing(), func).maps(self.args.testDirectory)
         if self.args.extendFlag:
-            OSMSimilarityMap(self.args, self.log, self, self.data.testing(), func).maps(self.args.testDirectory)
+            OSMSimilarityMap(self, self.data.training(), func).maps(self.args.trainDirectory)
 
 
 # ===============================================================================
@@ -109,8 +109,8 @@ class SequentialModel(with_metaclass(ModelMetaClass, KerasClassifier)):
         super(SequentialModel, self).__init__(args, log)
 
         # define the model data view.
-        self.arguments = { "DEPENDENT" : { "VARIABLE" : "pIC50", "SHAPE" : (-1,), "TYPE": np.float64 }
-                         , "INDEPENDENT" : [ { "VARIABLE" : "MORGAN1024", "SHAPE": (-1,1024), "TYPE": np.float64 } ] }
+        self.arguments = { "DEPENDENT" : { "VARIABLE" : "pIC50", "SHAPE" : [1], "TYPE": np.float64 }
+                         , "INDEPENDENT" : [ { "VARIABLE" : "MORGAN1024", "SHAPE": [1024], "TYPE": np.float64 } ] }
 
     # These functions need to be re-defined in all classifier model classes.
 
@@ -160,8 +160,8 @@ class ModifiedSequential(with_metaclass(ModelMetaClass, KerasClassifier)):
         super(ModifiedSequential, self).__init__(args, log)
 
         # define the model data view.
-        self.arguments = { "DEPENDENT" : { "VARIABLE" : "pIC50", "SHAPE" : (-1,), "TYPE": np.float64 }
-                         , "INDEPENDENT" : [ { "VARIABLE" : "MORGAN2048", "SHAPE": (-1,2048), "TYPE": np.float64 } ] }
+        self.arguments = { "DEPENDENT" : { "VARIABLE" : "pIC50", "SHAPE" : [1], "TYPE": np.float64 }
+                         , "INDEPENDENT" : [ { "VARIABLE" : "MORGAN2048", "SHAPE": [2048], "TYPE": np.float64 } ] }
 
     # These functions need to be re-defined in all classifier model classes.
 
@@ -206,7 +206,7 @@ class ModifiedSequential(with_metaclass(ModelMetaClass, KerasClassifier)):
                        , nb_epoch=epoch, batch_size=45, verbose=1)
 
 
-    def keras_train_default(self, train):  # Reduced number of default training epoches.
+    def keras_train_default(self):  # Reduced number of default training epoches.
         self.model.fit(self.data.training().input_data(), self.data.training().target_data()
                        , nb_epoch=200, batch_size=45, verbose=1)
 

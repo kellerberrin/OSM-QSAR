@@ -42,8 +42,6 @@ from sklearn import tree, metrics
 from sklearn.model_selection import StratifiedKFold
 from sklearn.preprocessing import StandardScaler
 
-from rdkit import Chem
-from rdkit.Chem.Draw import SimilarityMaps
 
 from OSMBase import ModelMetaClass  # The virtual model class.
 from OSMRegression import OSMRegression  # Display and save regression results.
@@ -63,10 +61,11 @@ class OSMSKLearnSVMR(with_metaclass(ModelMetaClass, OSMRegression)):
     def __init__(self, args, log):
         super(OSMSKLearnSVMR, self).__init__(args, log)  # Edit this and change the class name.
 
-        self.arguments = { "DEPENDENT" : { "VARIABLE" : "pIC50", "SHAPE" : (-1,), "TYPE": np.float64 }
-                         , "INDEPENDENT" : [ { "VARIABLE" : "MORGAN2048", "SHAPE": None, "TYPE": np.float64 } ] }
+        # define the model data view.
+        self.arguments = { "DEPENDENT" : { "VARIABLE" : "pIC50", "SHAPE" : [1], "TYPE": np.float64 }
+                         , "INDEPENDENT" : [ { "VARIABLE" : "MORGAN2048", "SHAPE": [None], "TYPE": np.float64 } ] }
 
-    # These functions need to be re-defined in all classifier model classes.
+    # These functions need to be re-defined in all regression model classes.
 
     def model_name(self):
         return "Support Vector Machine (SVM), Regression"  # Model name string.
@@ -83,7 +82,6 @@ class OSMSKLearnSVMR(with_metaclass(ModelMetaClass, OSMRegression)):
         return svm.SVR(kernel=str("rbf"), C=1e3, gamma=0.00001)
 
     def model_train(self):
-        # Restrict the SVM to 1 input argument
         self.model.fit(self.data.training().input_data(), self.data.training().target_data())
 
     # Just returns a model_define() and complains since there is no model file operation defined.
@@ -96,7 +94,6 @@ class OSMSKLearnSVMR(with_metaclass(ModelMetaClass, OSMRegression)):
         return
 
     def model_prediction(self, data):
-        # Restrict the SVM to 1 input argument
         prediction = self.model.predict(data.input_data())
         return {"prediction": prediction, "actual": data.target_data()}
 
@@ -122,9 +119,9 @@ class OSMSKLearnSVMR(with_metaclass(ModelMetaClass, OSMRegression)):
 
         func = lambda x: svmr_probability(x, self.model.predict)
 
-        OSMSimilarityMap(self.args, self.log, self, self.data.testing(), func).maps(self.args.testDirectory)
+        OSMSimilarityMap(self, self.data.testing(), func).maps(self.args.testDirectory)
         if self.args.extendFlag:
-            OSMSimilarityMap(self.args, self.log, self, self.data.testing(), func).maps(self.args.testDirectory)
+            OSMSimilarityMap(self, self.data.training(), func).maps(self.args.trainDirectory)
 
 
 
@@ -140,8 +137,8 @@ class OSMSKLearnSVMC(with_metaclass(ModelMetaClass, OSMClassification)):
         super(OSMSKLearnSVMC, self).__init__(args, log)  # Edit this and change the class name.
 
         # define the model data view.
-        self.arguments = { "DEPENDENT" : { "VARIABLE" : "IC50_ACTIVITY", "SHAPE" : (-1,), "TYPE": np.str }
-                         , "INDEPENDENT" : [ { "VARIABLE" : "MORGAN2048", "SHAPE": None, "TYPE": np.float64 } ] }
+        self.arguments = { "DEPENDENT" : { "VARIABLE" : "ION_ACTIVITY", "SHAPE" : [1], "TYPE": np.str }
+                         , "INDEPENDENT" : [ { "VARIABLE" : "MORGAN2048", "SHAPE": [None], "TYPE": np.float64 } ] }
 
     # These functions need to be re-defined in all classifier model classes.
 
@@ -159,8 +156,6 @@ class OSMSKLearnSVMC(with_metaclass(ModelMetaClass, OSMClassification)):
     def model_define(self):
         return OneVsRestClassifier(svm.SVC(kernel=str("rbf"), probability=True, C=1e3, gamma=0.00001))
 
-    #        return svm.SVC(probability=True)
-
     def model_train(self):
         # Restrict the SVM to 1 input argument
         self.model.fit(self.data.training().input_data(), self.data.training().target_data())
@@ -175,7 +170,6 @@ class OSMSKLearnSVMC(with_metaclass(ModelMetaClass, OSMClassification)):
         return
 
     def model_prediction(self, data):
-        # Restrict the SVM to 1 input argument
         prediction = self.model.predict(data.input_data())
         return {"prediction": prediction, "actual": data.target_data()}
 
@@ -204,7 +198,7 @@ class OSMSKLearnSVMC(with_metaclass(ModelMetaClass, OSMClassification)):
 
         func = lambda x: classifier_probability(x, self.model.predict_proba)
 
-        OSMSimilarityMap(self.args, self.log, self, self.data.testing(), func).maps(self.args.testDirectory)
+        OSMSimilarityMap(self, self.data.testing(), func).maps(self.args.testDirectory)
         if self.args.extendFlag:
-            OSMSimilarityMap(self.args, self.log, self, self.data.testing(), func).maps(self.args.testDirectory)
+            OSMSimilarityMap(self, self.data.training(), func).maps(self.args.trainDirectory)
 

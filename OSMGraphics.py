@@ -23,15 +23,12 @@
 #
 # Python 2 and Python 3 compatibility imports.
 from __future__ import absolute_import, division, print_function, unicode_literals
-from six import with_metaclass
 
 import os
 import sys
 
-import numpy as np
 from matplotlib import cm
 import matplotlib.pyplot as plt
-
 
 from rdkit import Chem
 from rdkit.Chem.Draw import SimilarityMaps
@@ -43,10 +40,10 @@ from rdkit.Chem.Draw import SimilarityMaps
 
 class OSMSimilarityMap(object):
 
-    def __init__(self, arg, log, model, data, func):
+    def __init__(self, model, data, func):
 
-        self.arg = arg
-        self.log = log
+        self.args = model.args
+        self.log = model.log
         self.model = model
         self.data = data
         self.fingerprinter = None
@@ -96,7 +93,7 @@ class OSMSimilarityMap(object):
             graph_file_name = self.data.get_field("ID")[idx] + "_sim_" + self.model.model_postfix() + ".png"
             graph_path_name = os.path.join(directory, graph_file_name)
             fig.savefig(graph_path_name, bbox_inches="tight")
-            plt.close(fig) # release memory
+            plt.close(fig)  # release memory
             diagram_count += 1
             progress_line = "Processing similarity diagram {}/{}\r".format(diagram_count, diagram_total)
             sys.stdout.write(progress_line)

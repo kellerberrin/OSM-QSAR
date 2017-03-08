@@ -12,7 +12,7 @@ https://github.com/kellerberrin/OSM-QSAR
 
 OSM_QSAR software is designed to be a software toolkit to simplify the development of 
 ligand molecular screening and classification using Machine Learning techniques. 
-User models are designed to "plug-in" to OSM_QSAR without further coding. 
+User models are designed to "plug-in" to OSM_QSAR with minimal coding. 
 A neural network classifier can be specified and tested with 20 lines of python code. 
 All user specified models automatically have access to statistical and graphical analysis.
 See "OSMKeras.py" for an example neural network classifiers using the KERAS
@@ -87,7 +87,7 @@ using the "--dir" flag.
 
 Finally execute:
 
-(yourenvname) >python OSM_QSAR.py --epoch 1000 
+(yourenvname) >python OSM_QSAR.py 
 
 This executes the neural network classifier coded by Vito Spadavecchio (the default model "seq") 
 and generates a log file in ".Data/seq/OSM_QSAR.log" 

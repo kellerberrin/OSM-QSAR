@@ -54,9 +54,18 @@ class OSMGenerateData(object):
         # Add the finger print columns
         morgan_1024 = lambda x: AllChem.GetMorganFingerprintAsBitVect(x, 4, nBits=1024)
         morgan_2048 = lambda x: AllChem.GetMorganFingerprintAsBitVect(x, 2, nBits=2048)
+        topological_2048 = lambda x: AllChem.GetHashedTopologicalTorsionFingerprintAsBitVect(x)
+        macc = lambda x: AllChem.GetMACCSKeysFingerprint(x)
 
-        self.add_fingerprint(self.data, morgan_1024, "MORGAN1024")
-        self.add_fingerprint(self.data, morgan_2048, "MORGAN2048")
+        self.add_bitvect_fingerprint(self.data, morgan_1024, "MORGAN1024")
+        self.add_bitvect_fingerprint(self.data, morgan_2048, "MORGAN2048")
+        self.add_bitvect_fingerprint(self.data, topological_2048, "TOPOLOGICAL2048")
+        self.add_bitvect_fingerprint(self.data, macc, "MACCFP")
+
+        if self.args.varFlag: # If the "--vars" flag is specified then list the variables and exit.
+            self.log.info("The Available Modelling Variables are:")
+            self.display_variables()
+            sys.exit()
 
     def display_variables(self):
             for column in self.data.columns:
@@ -78,12 +87,10 @@ class OSMGenerateData(object):
             if not set(mandatory_fields) <= set(data_frame):
                 self.log.error("Mandatory data fields %s absent.", ",".join(mandatory_fields))
                 self.log.error("File %s contains fields %s.", file_name, ",".join(data_frame))
-                self.log.fatal("OSM_QSAR cannot continue.")
                 sys.exit()
 
         except IOError:
             self.log.error('Problem reading data file %s, Check the "--data", ""--dir" and --help" flags.', file_name)
-            self.log.fatal("OSM_QSAR cannot continue.")
             sys.exit()
 
         self.log.info("Read %d records from file %s", data_frame.shape[0], file_name)
@@ -91,7 +98,7 @@ class OSMGenerateData(object):
         return data_frame
 
     # Generate the molecular fingerprints..
-    def add_fingerprint(self, data_frame, finger_printer, column_name):
+    def add_bitvect_fingerprint(self, data_frame, finger_printer, column_name):
         """ Generate molecular fingerprints as a numpy array of floats"""
 
         int_list = []

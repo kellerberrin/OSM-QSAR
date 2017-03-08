@@ -40,8 +40,8 @@ class OSMRegressionTemplate(with_metaclass(ModelMetaClass, OSMRegression)):  # E
     def __init__(self, args, log):
         super(OSMRegressionTemplate, self).__init__(args, log)  # Edit this and change the class name.
 
-        self.arguments = { "DEPENDENT" : { "VARIABLE" : "IC50", "SHAPE" : (-1,), "TYPE": np.float64 }
-                         , "INDEPENDENT" : [ { "VARIABLE" : "IC50", "SHAPE": (-1,), "TYPE": np.float64 } ] }
+        self.arguments = { "DEPENDENT" : { "VARIABLE" : "IC50", "SHAPE" : [1], "TYPE": np.float64 }
+                         , "INDEPENDENT" : [ { "VARIABLE" : "IC50", "SHAPE": [1], "TYPE": np.float64 } ] }
 
     # These functions need to be re-defined in all classifier model classes.
 
@@ -94,8 +94,8 @@ class OSMClassificationTemplate(with_metaclass(ModelMetaClass, OSMClassification
     def __init__(self, args, log):
         super(OSMClassificationTemplate, self).__init__(args, log)  # Edit this and change the class name.
 
-        self.arguments = { "DEPENDENT" : { "VARIABLE" : "ION_ACTIVITY", "SHAPE" : (-1,), "TYPE": np.str }
-                         , "INDEPENDENT" : [ { "VARIABLE" : "ION_ACTIVITY", "SHAPE": (-1,), "TYPE": np.str } ] }
+        self.arguments = { "DEPENDENT" : { "VARIABLE" : "ION_ACTIVITY", "SHAPE" : [1], "TYPE": np.str }
+                         , "INDEPENDENT" : [ { "VARIABLE" : "ION_ACTIVITY", "SHAPE": [1], "TYPE": np.str } ] }
 
     # These functions need to be re-defined in all classifier model classes.
 

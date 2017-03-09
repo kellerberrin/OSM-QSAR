@@ -28,9 +28,9 @@ import os
 import sys
 import time
 
-import math
+import numpy as np
 import scipy.stats as st
-from sklearn.metrics import roc_auc_score, confusion_matrix
+from sklearn.metrics import auc, roc_auc_score, confusion_matrix
 from sklearn.preprocessing import label_binarize
 
 from OSMBase import OSMBaseModel
@@ -119,16 +119,26 @@ class OSMClassification(OSMBaseModel):
         actual_one_hot =label_binarize(actual_text, classes)
         predict_one_hot = label_binarize(actual_text, classes)
 
-        class_auc = roc_auc_score(actual_one_hot, probabilities, average=None, sample_weight=None)
-        macro_auc = roc_auc_score(actual_one_hot, probabilities, average="macro", sample_weight=None)
-        micro_auc = roc_auc_score(actual_one_hot, probabilities, average="micro", sample_weight=None)
+        if len(classes) == 2 and actual_one_hot.shape[1] == 1:
+            auc_probs = probabilities[:,1]
+        else:
+            auc_probs = probabilities
+
+        class_auc = roc_auc_score(actual_one_hot, auc_probs, average=None, sample_weight=None)
+        macro_auc = roc_auc_score(actual_one_hot, auc_probs, average="macro", sample_weight=None)
+        micro_auc = roc_auc_score(actual_one_hot, auc_probs, average="micro", sample_weight=None)
+
+        if len(classes) == 2 and actual_one_hot.shape[1] == 1:
+            mod_class_auc = None
+        else:
+            mod_class_auc = class_auc
 
         confusion = confusion_matrix(actual_text, predict_text)
 
         # Return the model analysis statistics in a dictionary.
         return {"classes": classes, "actual_one_hot": actual_one_hot, "predict_one_host": predict_one_hot
                , "prob_rank": probability_ranks, "actual_text": actual_text, "predict_text": predict_text
-               , "confusion" : confusion, "class_auc": class_auc, "macro_auc": macro_auc, "micro_auc": micro_auc}
+               , "confusion" : confusion, "class_auc": mod_class_auc, "macro_auc": macro_auc, "micro_auc": micro_auc}
 
 
     def model_prediction_records(self, data, statistics, predictions, probabilities):
@@ -165,8 +175,9 @@ class OSMClassification(OSMBaseModel):
 
         self.log.info("Training Compounds macro AUC: %f", statistics["macro_auc"])
         self.log.info("Training Compounds micro AUC: %f", statistics["micro_auc"])
-        for aclass, auc in zip(statistics["classes"], statistics["class_auc"]):
-            self.log.info("Training Compounds Class %s AUC: %f", aclass, auc)
+        if statistics["class_auc"] is not None:
+            for aclass, auc in zip(statistics["classes"], statistics["class_auc"]):
+                self.log.info("Training Compounds Class %s AUC: %f", aclass, auc)
 
     # Display the classification results and write to the log file.
     def log_test_statistics(self, data, statistics, predictions, probabilities):
@@ -181,8 +192,9 @@ class OSMClassification(OSMBaseModel):
             self.log.info("Independent (Input) Variable(s): %s", var)
         self.log.info("Test Compounds macro AUC: %f", statistics["macro_auc"])
         self.log.info("Test Compounds micro AUC: %f", statistics["micro_auc"])
-        for aclass, auc in zip(statistics["classes"], statistics["class_auc"]):
-            self.log.info("Test Class %s AUC: %f", aclass, auc)
+        if statistics["class_auc"] is not None:
+            for aclass, auc in zip(statistics["classes"], statistics["class_auc"]):
+                self.log.info("Test Class %s AUC: %f", aclass, auc)
         self.log.info("+++++++++++++++ Confusion matrix +++++++++++++++++++++++")
         line = "true/predict  "
         for a_class in statistics["classes"]:
@@ -234,9 +246,10 @@ class OSMClassification(OSMBaseModel):
                 stats_file.write(line)
                 line = "Micro AUC, {}\n".format(statistics["micro_auc"])
                 stats_file.write(line)
-                for aclass, auc in zip(statistics["classes"], statistics["class_auc"]):
-                    line = "Class {} AUC, {}\n".format(aclass, auc)
-                    stats_file.write(line)
+                if statistics["class_auc"] is not None:
+                    for aclass, auc in zip(statistics["classes"], statistics["class_auc"]):
+                        line = "Class {} AUC, {}\n".format(aclass, auc)
+                        stats_file.write(line)
                 stats_file.write("Confusion matrix\n")
                 line = "true/predict"
                 for a_class in statistics["classes"]:

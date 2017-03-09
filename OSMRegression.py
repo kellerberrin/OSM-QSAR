@@ -31,7 +31,6 @@ import math
 import scipy.stats as st
 
 from OSMBase import OSMBaseModel
-from OSMUtility import OSMUtility
 
 
 # ============================================================================

@@ -30,7 +30,6 @@ import numpy as np
 from OSMBase import ModelMetaClass  # The virtual model class.
 from OSMRegression import OSMRegression  # Display and save regression results.
 from OSMClassify import OSMClassification  # Display and save classification results.
-from OSMUtility import OSMUtility
 from OSMModelData import OSMModelData
 
 

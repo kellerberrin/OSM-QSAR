@@ -52,9 +52,11 @@ class KerasClassifier(OSMRegression):
         super(KerasClassifier, self).__init__(args, log)
 
     def model_read(self, file_name):
+        self.log.info("KERAS - Loading Pre-Trained %s Model File: %s", self.model_name(), file_name)
         return load_model(file_name)
 
     def model_write(self, file_name):
+        self.log.info("KERAS - Saving Trained %s Model in File: %s", self.model_name(), file_name)
         self.model.save(file_name)
 
     def model_train(self):

@@ -38,32 +38,6 @@ class OSMUtility(object):
     def __init__(self): pass
 
 
-    # Accepts a numpy.ndarray of probabilities shape = (n_samples, n_classes)
-    # Returns a text list of potency classes.
-    @staticmethod
-    def probability_text(prob_list, training_classes):
-        if len(prob_list) == 0:
-            return prob_list
-        text_classes = training_classes
-        if isinstance(prob_list, numpy.ndarray):
-            class_list = []
-            for x in prob_list:
-                idx = numpy.argmax(x)
-                class_list.append(text_classes[idx])
-            return class_list
-        else: # assume a list.
-            class_list = []
-            for x in prob_list:
-                idx = x.index(max(x))
-                class_list.append(text_classes[idx])
-            return class_list
-
-    # Accepts a list (not a numpy.ndarray!) of one hot classifications, or if only 2 potency classes,
-    # a single binary list. Returns a text list of potency classes.
-    @staticmethod
-    def one_hot_text(one_hot_labels, training_classes):
-            return one_hot_labels
-
     # Return the one hot classifications including one hot singletons.
     @staticmethod
     def data_one_hot(data, training_classes):

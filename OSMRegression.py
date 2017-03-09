@@ -205,7 +205,7 @@ class OSMRegression(OSMBaseModel):
                 stats_file.write(line)
                 line = "CPUtime, {}\n".format(time.clock())
                 stats_file.write(line)
-                line = "++++++++++++++++,Statistics,++++++++++++++++\n"
+                line = "++++++++++++++++,Test_Statistics,++++++++++++++++\n"
                 stats_file.write(line)
                 line = "MUE, {}\n".format(statistics["MUE"])
                 stats_file.write(line)
@@ -217,8 +217,9 @@ class OSMRegression(OSMBaseModel):
                 line = "Spearman, {}, {}\n".format(statistics["spearman"]["rho"],
                                                    statistics["spearman"]["p-value"])
                 stats_file.write(line)
-                line = "ID, Rank, Pred_Rank, Tested_{}, Pred_{}, Tested_Active, Pred_Active, SMILE\n".format(
-                                                                                    dependent_var, dependent_var)
+                line = "++++++++++++++++,Compound_Statistics,++++++++++++++++\n"
+                stats_file.write(line)
+                line = "ID, Rank, Pred_Rank, Tested_{}, Pred_{}, SMILE\n".format(dependent_var, dependent_var)
                 stats_file.write(line)
 
                 predict_list = self.model_prediction_records(data, predictions, statistics)

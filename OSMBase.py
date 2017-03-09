@@ -120,8 +120,7 @@ class OSMBaseModel(object):
             self.log.info("Begin Training %s Model", self.model_name())
             self.model_train()
             self.log.info("End Training %s Model", self.model_name())
-            if self.model_can_write():
-                self.save_model_file(self.args.saveFilename)
+            self.save_model_file(self.args.saveFilename)
 
         # Write results to log file, generate graphics, generate statistics file.
         # This is a virtual function and calls either OSMRegression or OSMClassifier depending on classification type.
@@ -129,7 +128,6 @@ class OSMBaseModel(object):
 
     def save_model_file(self, save_file):
         if save_file != "nosave":
-            self.log.info("Saving Trained %s Model in File: %s", self.model_name(), save_file)
             self.model_write(save_file)
 
     def create_model(self):
@@ -140,7 +138,6 @@ class OSMBaseModel(object):
             else:
                 load_file = self.args.retrainFilename
 
-            self.log.info("Loading Pre-Trained %s Model File: %s", self.model_name(), load_file)
             model = self.model_read(load_file)
         else:
             self.log.info("+++++++ Creating %s Model +++++++", self.model_name())
@@ -169,5 +166,7 @@ class OSMBaseModel(object):
     # Default for any model without graphics functions.
     def model_graphics(self): pass
 
-    # Is model I/O defined? (True by default)
-    def model_can_write(self): return True
+    # Redefine these if model I/O is defined.
+    def model_write(self, save_file): pass
+
+    def model_read(self, load_file): return self.model_define()

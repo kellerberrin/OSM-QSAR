@@ -84,15 +84,6 @@ class OSMSKLearnSVMR(with_metaclass(ModelMetaClass, OSMRegression)):
     def model_train(self):
         self.model.fit(self.data.training().input_data(), self.data.training().target_data())
 
-    # Just returns a model_define() and complains since there is no model file operation defined.
-    def model_read(self, file_name):
-        self.log.warn("%s model does not save to a model file, a new model was created", self.model_name())
-        return self.model_define()
-
-    def model_write(self, file_name):
-        self.log.warn("%s model write function not defined.", self.model_name())
-        return
-
     def model_prediction(self, data):
         prediction = self.model.predict(data.input_data())
         return {"prediction": prediction, "actual": data.target_data()}
@@ -159,15 +150,6 @@ class OSMSKLearnSVMC(with_metaclass(ModelMetaClass, OSMClassification)):
     def model_train(self):
         # Restrict the SVM to 1 input argument
         self.model.fit(self.data.training().input_data(), self.data.training().target_data())
-
-    # Just returns a model_define() and complains since there is no model file operation defined.
-    def model_read(self, file_name):
-        self.log.warn("%s model does not save to a model file, a new model was created", self.model_name())
-        return self.model_define()
-
-    def model_write(self, file_name):
-        self.log.warn("%s model write function not defined.", self.model_name())
-        return
 
     def model_prediction(self, data):
         prediction = self.model.predict(data.input_data())

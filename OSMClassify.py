@@ -30,11 +30,10 @@ import time
 
 import math
 import scipy.stats as st
-import sklearn.metrics
+from sklearn.metrics import roc_auc_score, confusion_matrix
+from sklearn.preprocessing import label_binarize
 
 from OSMBase import OSMBaseModel
-from OSMUtility import OSMUtility
-
 
 # ============================================================================
 # The Classification Results Presentation Object.
@@ -65,7 +64,6 @@ class OSMClassification(OSMBaseModel):
         if not test_class_set <= class_set:
             self.log.error("There are test classes %s that are not in the training class set %s",
                            ",".join(list(test_class_set)), ",".join(list(class_set)))
-            self.log.fatal("OSM_QSAR cannot continue.")
             sys.exit()
         class_list = list(class_set)  # convert back to set
         sorted_class_list = sorted(class_list)   # ascending sort.
@@ -109,25 +107,28 @@ class OSMClassification(OSMBaseModel):
                               self.args.testDirectory)
 
     def model_accuracy(self, predictions, probability):
-        predict = predictions["prediction"]
-        actual = predictions["actual"]
+
+        classes = self.model_enumerate_classes()
+        predict_text = predictions["prediction"]
+        actual_text = predictions["actual"]
         probabilities = probability["probability"]
         inv_probability = [1 - x[0] for x in probabilities]  # only interested in the first column ("active")
         # Sort rankings.
         probability_ranks = st.rankdata(inv_probability, method="average")
 
-        #        fpr, tpr, thresholds = roc_curve(y[test], probas_[:, 1])
-        #        auc_stat = auc(predict, actual)
-        auc_stat = 0
+        actual_one_hot =label_binarize(actual_text, classes)
+        predict_one_hot = label_binarize(actual_text, classes)
 
-        actual_text = OSMUtility.one_hot_text(actual, self.model_enumerate_classes())
-        predict_text = OSMUtility.probability_text(probabilities, self.model_enumerate_classes())
+        class_auc = roc_auc_score(actual_one_hot, probabilities, average=None, sample_weight=None)
+        macro_auc = roc_auc_score(actual_one_hot, probabilities, average="macro", sample_weight=None)
+        micro_auc = roc_auc_score(actual_one_hot, probabilities, average="micro", sample_weight=None)
 
-        confusion = sklearn.metrics.confusion_matrix(actual_text, predict_text)
+        confusion = confusion_matrix(actual_text, predict_text)
 
         # Return the model analysis statistics in a dictionary.
-        return {"AUC": auc_stat, "actual": actual, "predict": predict, "prob_rank": probability_ranks,
-                "actual_text": actual_text, "predict_text": predict_text, "confusion" : confusion }
+        return {"classes": classes, "actual_one_hot": actual_one_hot, "predict_one_host": predict_one_hot
+               , "prob_rank": probability_ranks, "actual_text": actual_text, "predict_text": predict_text
+               , "confusion" : confusion, "class_auc": class_auc, "macro_auc": macro_auc, "micro_auc": micro_auc}
 
 
     def model_prediction_records(self, data, statistics, predictions, probabilities):
@@ -162,13 +163,14 @@ class OSMClassification(OSMBaseModel):
 
     def log_train_statistics(self, data, statistics, predictions, probabilities):
 
-        self.log.info("Training Compounds Area Under Curve (AUC): %f", statistics["AUC"])
+        self.log.info("Training Compounds macro AUC: %f", statistics["macro_auc"])
+        self.log.info("Training Compounds micro AUC: %f", statistics["micro_auc"])
+        for aclass, auc in zip(statistics["classes"], statistics["class_auc"]):
+            self.log.info("Training Compounds Class %s AUC: %f", aclass, auc)
 
     # Display the classification results and write to the log file.
     def log_test_statistics(self, data, statistics, predictions, probabilities):
         """Display all the calculated statistics for each model; run"""
-        classes = self.model_enumerate_classes()
-        self.log.info("Test Compounds Area Under Curve: %f", statistics["AUC"])
         independent_list = []
         for var in self.model_arguments()["INDEPENDENT"]:
             independent_list.append(var["VARIABLE"])
@@ -177,17 +179,21 @@ class OSMClassification(OSMBaseModel):
         self.log.info("Dependent (Target) Variable: %s", dependent_var)
         for var in independent_list:
             self.log.info("Independent (Input) Variable(s): %s", var)
+        self.log.info("Test Compounds macro AUC: %f", statistics["macro_auc"])
+        self.log.info("Test Compounds micro AUC: %f", statistics["micro_auc"])
+        for aclass, auc in zip(statistics["classes"], statistics["class_auc"]):
+            self.log.info("Test Class %s AUC: %f", aclass, auc)
         self.log.info("+++++++++++++++ Confusion matrix +++++++++++++++++++++++")
         line = "true/predict  "
-        for a_class in classes:
+        for a_class in statistics["classes"]:
             line += "{:10s}".format(a_class)
         self.log.info(line)
         for rowidx in range(len(statistics["confusion"])):
-            line = "{:10s}".format(classes[rowidx])
+            line = "{:10s}".format(statistics["classes"][rowidx])
             for colidx in range(len(statistics["confusion"][rowidx])):
                 line += "{:8d}".format(statistics["confusion"][rowidx][colidx])
             self.log.info(line)
-        self.log.info("ID, Actual Class, Pred. Class, Prob. Rank, Prob. %s", classes[0])
+        self.log.info("ID, Actual Class, Pred. Class, Prob. Rank, Prob. %s", statistics["classes"][0])
         self.log.info("===================================================================================")
 
         sorted_records = self.model_prediction_records(data, statistics, predictions, probabilities)
@@ -207,7 +213,6 @@ class OSMClassification(OSMBaseModel):
         dependent_var = self.model_arguments()["DEPENDENT"]["VARIABLE"]
         try:
 
-            classes = self.model_enumerate_classes()
             with open(stats_filename, 'a') as stats_file:
 
                 line = "****************,Classification,******************\n"
@@ -225,16 +230,21 @@ class OSMClassification(OSMBaseModel):
                     stats_file.write(line)
                 line = "++++++++++++++++,Test_Statistics,++++++++++++++++\n"
                 stats_file.write(line)
-                line = "AUC, {}\n".format(statistics["AUC"])
+                line = "Macro AUC, {}\n".format(statistics["macro_auc"])
                 stats_file.write(line)
+                line = "Micro AUC, {}\n".format(statistics["micro_auc"])
+                stats_file.write(line)
+                for aclass, auc in zip(statistics["classes"], statistics["class_auc"]):
+                    line = "Class {} AUC, {}\n".format(aclass, auc)
+                    stats_file.write(line)
                 stats_file.write("Confusion matrix\n")
                 line = "true/predict"
-                for a_class in classes:
+                for a_class in statistics["classes"]:
                     line += ",{}".format(a_class)
                 line += "\n"
                 stats_file.write(line)
                 for rowidx in range(len(statistics["confusion"])):
-                    line = "{}".format(classes[rowidx])
+                    line = "{}".format(statistics["classes"][rowidx])
                     for colidx in range(len(statistics["confusion"][rowidx])):
                         line += ",{}".format(statistics["confusion"][rowidx][colidx])
                     line += "\n"
@@ -245,7 +255,7 @@ class OSMClassification(OSMBaseModel):
                 line = "++++++++++++++++,Compound_Statistics,++++++++++++++++\n"
                 stats_file.write(line)
                 line = "ID, Actual_Class, Pred_Class"
-                for cls in classes:
+                for cls in statistics["classes"]:
                     line += ", Prob_" + cls
                 line += ", SMILE\n"
                 stats_file.write(line)
@@ -253,7 +263,7 @@ class OSMClassification(OSMBaseModel):
                 for record in sorted_records:
                     line = "{}, {}, {}".format(record[0], record[1], record[2])
 
-                    for cls_idx in range(len(classes)):
+                    for cls_idx in range(len(statistics["classes"])):
                         line += ", {}".format(record[5][cls_idx])
 
                     line += ", {}\n".format(record[4])

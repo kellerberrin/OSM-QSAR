@@ -51,6 +51,25 @@ class OSMGenerateData(object):
 
         self.check_smiles(self.data)
 
+        self.generate_fields()
+
+        if self.args.varFlag: # If the "--vars" flag is specified then list the variables and exit.
+            self.log.info("The Available Modelling Variables are:")
+            self.display_variables()
+            sys.exit()
+
+    def display_variables(self):
+            for column in self.data.columns:
+                self.log.info("Variable: %s", column)
+
+    def get_data(self):
+        return self.data
+
+
+    def generate_fields(self):
+
+        self.log.info("Calculating pharmacophore fields, may take a few minutes....")
+
         # Add the finger print columns
         morgan_1024 = lambda x: AllChem.GetMorganFingerprintAsBitVect(x, 4, nBits=1024)
         morgan_2048 = lambda x: AllChem.GetMorganFingerprintAsBitVect(x, 2, nBits=2048)
@@ -64,21 +83,10 @@ class OSMGenerateData(object):
         self.add_bitvect_fingerprint(self.data, morgan_2048, "MORGAN2048")
         self.add_bitvect_fingerprint(self.data, morgan_2048_3, "MORGAN2048_3")
         self.add_bitvect_fingerprint(self.data, morgan_2048_4, "MORGAN2048_4")
-        self.add_bitvect_fingerprint(self.data, morgan_2048_4, "MORGAN2048_5")
+        self.add_bitvect_fingerprint(self.data, morgan_2048_5, "MORGAN2048_5")
         self.add_bitvect_fingerprint(self.data, topological_2048, "TOPOLOGICAL2048")
         self.add_bitvect_fingerprint(self.data, macc, "MACCFP")
 
-        if self.args.varFlag: # If the "--vars" flag is specified then list the variables and exit.
-            self.log.info("The Available Modelling Variables are:")
-            self.display_variables()
-            sys.exit()
-
-    def display_variables(self):
-            for column in self.data.columns:
-                self.log.info("Variable: %s", column)
-
-    def get_data(self):
-        return self.data
 
     # Read CSV File into a pandas data frame
     def read_csv(self, file_name):

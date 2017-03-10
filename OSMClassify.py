@@ -57,17 +57,6 @@ class OSMClassification(OSMBaseModel):
     def model_is_classifier(self):
         return True
 
-    def model_enumerate_classes(self):
-
-        class_set = set(self.data.training().target_data())
-        test_class_set = set(self.data.testing().target_data())
-        if not test_class_set <= class_set:
-            self.log.error("There are test classes %s that are not in the training class set %s",
-                           ",".join(list(test_class_set)), ",".join(list(class_set)))
-            sys.exit()
-        class_list = list(class_set)  # convert back to set
-        sorted_class_list = sorted(class_list)   # ascending sort.
-        return sorted_class_list
 
     def model_classification_results(self):
         self.train_predictions = self.model_prediction(self.data.training())  # Returns a dict. with "prediction" and "actual"
@@ -117,7 +106,7 @@ class OSMClassification(OSMBaseModel):
         probability_ranks = st.rankdata(inv_probability, method="average")
 
         actual_one_hot =label_binarize(actual_text, classes)
-        predict_one_hot = label_binarize(actual_text, classes)
+        predict_one_hot = label_binarize(predict_text, classes)
 
         if len(classes) == 2 and actual_one_hot.shape[1] == 1:
             auc_probs = probabilities[:,1]
@@ -285,3 +274,15 @@ class OSMClassification(OSMBaseModel):
 
         except IOError:
             self.log.error("Problem writing to statistics file %s, check path and permissions", stats_filename)
+
+    def model_enumerate_classes(self):
+
+        class_set = set(self.data.training().target_data())
+        test_class_set = set(self.data.testing().target_data())
+        if not test_class_set <= class_set:
+            self.log.error("There are test classes %s that are not in the training class set %s",
+                           ",".join(list(test_class_set)), ",".join(list(class_set)))
+            sys.exit()
+        class_list = list(class_set)  # convert back to set
+        sorted_class_list = sorted(class_list)   # ascending sort.
+        return sorted_class_list

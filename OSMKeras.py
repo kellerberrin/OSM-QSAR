@@ -130,10 +130,10 @@ class SequentialModel(with_metaclass(ModelMetaClass, KerasClassifier)):
 
         model = Sequential()
 
-        model.add(Dense(1024, input_dim=1024, init='uniform', activation='relu'))
+        model.add(Dense(1024, input_dim=1024, init="uniform", activation="relu"))
         model.add(Dropout(0.2, input_shape=(1024,)))
-        model.add(Dense(1, init='normal'))
-        model.compile(loss='mean_absolute_error', optimizer='Adam', metrics=['accuracy'])
+        model.add(Dense(1, init="normal"))
+        model.compile(loss="mean_absolute_error", optimizer="Adam", metrics=["accuracy"])
 
         return model
 
@@ -182,15 +182,15 @@ class ModifiedSequential(with_metaclass(ModelMetaClass, KerasClassifier)):
         model = Sequential()
 
 #        model.add(Dense(2048, input_dim=2048, init='uniform', activation='relu',W_regularizer=l2(0.01), activity_regularizer=activity_l2(0.01)))
-        model.add(Dense(2048, input_dim=2048, init='uniform', activation='relu', W_constraint=maxnorm(3)))
+        model.add(Dense(2048, input_dim=2048, init="uniform", activation="relu", W_constraint=maxnorm(3)))
         model.add(Dropout(0.3, input_shape=(2048,)))
-        model.add(Dense(30, init='normal', activation='relu', W_constraint=maxnorm(3)))
+        model.add(Dense(30, init="normal", activation="relu", W_constraint=maxnorm(3)))
         model.add(Dropout(0.3, input_shape=(30,)))
-        model.add(Dense(1, init='normal', activation='tanh'))
-        model.add(Dense(1, init='normal', activation='linear'))
+        model.add(Dense(1, init="normal", activation="tanh"))
+        model.add(Dense(1, init="normal", activation="linear"))
         sgd = SGD(lr=0.1, momentum=0.9, decay=0.0, nesterov=False)
 
-        model.compile(loss='mean_absolute_error', optimizer=sgd, metrics=['accuracy'])
+        model.compile(loss='mean_absolute_error', optimizer="Adam", metrics=['accuracy'])
 #    	model.compile(loss='binary_crossentropy', optimizer=sgd, metrics=['accuracy'])
 #        model.compile(loss='mean_absolute_error', optimizer='Adam', metrics=['accuracy'])
 
@@ -205,10 +205,10 @@ class ModifiedSequential(with_metaclass(ModelMetaClass, KerasClassifier)):
 
     def keras_train_epoch(self, epoch):
         self.model.fit(self.data.training().input_data(), self.data.training().target_data()
-                       , nb_epoch=epoch, batch_size=45, verbose=1)
+                       , nb_epoch=epoch, batch_size=100, verbose=1)
 
 
     def keras_train_default(self):  # Reduced number of default training epoches.
         self.model.fit(self.data.training().input_data(), self.data.training().target_data()
-                       , nb_epoch=200, batch_size=45, verbose=1)
+                       , nb_epoch=200, batch_size=100, verbose=1)
 

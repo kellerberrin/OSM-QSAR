@@ -130,7 +130,6 @@ class OSMClassificationTemplate(with_metaclass(ModelMetaClass, OSMClassification
         return {"prediction": data.target_data(), "actual": data.target_data() }
 
     def model_probability(self, data):  # probabilities are returned as a numpy.shape = (samples, classes)
-        print("shape", data.target_data().shape[0])
         probability = np.zeros((data.target_data().shape[0], len(self.model_enumerate_classes())), dtype=float)
         probability[:, 0] = 1.0
         return {"probability": probability}

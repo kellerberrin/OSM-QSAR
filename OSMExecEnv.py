@@ -35,6 +35,7 @@ from OSMBase import get_model_instances
 import OSMKeras
 import OSMTemplate
 import OSMSKLearn
+import OSMTensorFlow
 
 __version__ = "0.1"
 

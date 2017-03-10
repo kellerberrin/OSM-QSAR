@@ -83,7 +83,7 @@ class TensorFlowClassifier(OSMClassification):
 
 
 # ===============================================================================
-# The sequential neural net class developed by Vito Spadavecchio.
+# A simple tensorflow example
 # ===============================================================================
 
 class TensorFlowSimpleClassifier(with_metaclass(ModelMetaClass, TensorFlowClassifier)):

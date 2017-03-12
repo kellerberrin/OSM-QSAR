@@ -100,7 +100,6 @@ class OSMBaseModel(object):
         self.log = log
         self.args = args
 
-
     #####################################################################################
     #
     # Local member functions that call virtual member functions defined
@@ -115,38 +114,25 @@ class OSMBaseModel(object):
         self.model = self.create_model()
         self.data = OSMModelData(self.args, self.log, self, data) # create a "model-centric" view of the data.
 
-        # Train the model.
-        if self.args.retrainFilename != "noretrain" or self.args.loadFilename == "noload":
-            self.log.info("Begin Training %s Model", self.model_name())
-            self.model_train()
-            self.log.info("End Training %s Model", self.model_name())
-            self.save_model_file(self.args.saveFilename)
-
-        # Write results to log file, generate graphics, generate statistics file.
-        # This is a virtual function and calls either OSMRegression or OSMClassifier depending on classification type.
+        self.log.info("Begin Training %s Model", self.model_name())
+        self.model_train()
+        self.log.info("End Training %s Model", self.model_name())
+        self.model_write()
         self.model_classification_results()
 
-    def save_model_file(self, save_file):
-        if save_file != "nosave":
-            self.model_write(save_file)
-
     def create_model(self):
-        if self.args.loadFilename != "noload" or self.args.retrainFilename != "noretrain":
-
-            if self.args.loadFilename != "noload":
-                load_file = self.args.loadFilename
-            else:
-                load_file = self.args.retrainFilename
-
-            model = self.model_read(load_file)
+        if self.args.loadFilename != "noload":
+            model = self.model_read()
         else:
             self.log.info("+++++++ Creating %s Model +++++++", self.model_name())
             model = self.model_define()
 
         return model
 
-    def model_arguments(self):
-        return self.arguments
+    def model_arguments(self): return self.arguments
+
+    # Necessary because we need to create the model singletons before the args are ready.
+    def model_update_environment(self, args): self.args = args
 
     #####################################################################################
     #
@@ -160,13 +146,13 @@ class OSMBaseModel(object):
 
     def model_is_unsupervised(self): return False   # re-defined in  OSMUnsupervised
 
-    # Necessary because we need to create the model singletons before the args are ready.
-    def model_update_environment(self, args): self.args = args
-
     # Default for any model without graphics functions.
     def model_graphics(self): pass
 
     # Redefine these if model I/O is defined.
-    def model_write(self, save_file): pass
+    def model_write(self): pass
 
-    def model_read(self, load_file): return self.model_define()
+    def model_read(self): return self.model_define()
+
+    def model_epochs(self): return 0
+

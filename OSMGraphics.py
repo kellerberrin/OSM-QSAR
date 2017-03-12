@@ -73,6 +73,13 @@ class OSMSimilarityMap(object):
 
                 return fingerprint_morgan2048
 
+            elif var_name == "MORGAN2048_4":
+
+                def fingerprint_morgan2048_4(mol, atom):
+                    return SimilarityMaps.GetMorganFingerprint(mol, atom, 4, 'bv', 2048)
+
+                return fingerprint_morgan2048_4
+
             else: return None
 
     # Generate the png similarity diagrams for the test compounds.

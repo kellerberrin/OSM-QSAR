@@ -25,6 +25,7 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
 from six import with_metaclass
 
+import sys
 
 import numpy as np
 
@@ -40,6 +41,8 @@ from keras.optimizers import SGD
 from OSMBase import ModelMetaClass  # The virtual model class.
 from OSMRegression import OSMRegression  # Display and save regression results.
 from OSMGraphics import OSMSimilarityMap
+from OSMModelData import OSMModelData
+from OSMIterative import OSMIterative
 
 
 # ===============================================================================
@@ -51,34 +54,32 @@ class KerasClassifier(OSMRegression):
     def __init__(self, args, log):
         super(KerasClassifier, self).__init__(args, log)
 
-    def model_read(self, file_name):
-        self.log.info("KERAS - Loading Pre-Trained %s Model File: %s", self.model_name(), file_name)
-        return load_model(file_name)
+        self.default_epochs = 1000
 
-    def model_write(self, file_name):
+        self.iterative = OSMIterative(self)
+
+    def model_write(self):
+        self.iterative.write()
+
+    def model_read(self):
+        return self.iterative.read()
+
+    def model_train(self):
+        self.iterative.train(self.default_epochs)
+
+    def epoch_write(self, epoch):
+        file_name = self.args.saveFilename + "_" + "{}".format(epoch) + ".krs"
         self.log.info("KERAS - Saving Trained %s Model in File: %s", self.model_name(), file_name)
         self.model.save(file_name)
 
-    def model_train(self):
-    
-        if self.args.checkPoint > 0 and self.args.epoch > self.args.checkPoint:
-    
-            remaining_epochs = self.args.epoch
-            while remaining_epochs > 0:
+    def epoch_read(self, epoch):
+        file_name = self.args.loadFilename + "_" + "{}".format(epoch) + ".krs"
+        self.log.info("KERAS - Loading Trained %s Model in File: %s", self.model_name(), file_name)
+        model = load_model(file_name)
+        return model
 
-                epochs = self.args.checkPoint if remaining_epochs > self.args.checkPoint else remaining_epochs
-                remaining_epochs = remaining_epochs - epochs
-
-                self.keras_train_epoch(epochs)
-                self.save_model_file(self.args.saveFilename)
-
-        elif self.args.epoch > 0:
-        
-            self.keras_train_epoch(self.args.epoch)
-              
-        else:
-        
-            self.keras_train_default()
+    def model_epochs(self):
+        return self.iterative.trained_epochs()
 
     def model_graphics(self):
 
@@ -96,10 +97,10 @@ class KerasClassifier(OSMRegression):
 
         func = lambda x: keras_probability(x, self.model.predict)
 
-        OSMSimilarityMap(self, self.data.testing(), func).maps(self.args.testDirectory)
-        if self.args.extendFlag:
-            OSMSimilarityMap(self, self.data.training(), func).maps(self.args.trainDirectory)
-
+        if self.args.checkPoint < 0 or self.args.extendFlag:
+            OSMSimilarityMap(self, self.data.testing(), func).maps(self.args.testDirectory)
+            if self.args.extendFlag:
+                OSMSimilarityMap(self, self.data.training(), func).maps(self.args.trainDirectory)
 
 # ===============================================================================
 # The sequential neural net class developed by Vito Spadavecchio.
@@ -110,9 +111,11 @@ class SequentialModel(with_metaclass(ModelMetaClass, KerasClassifier)):
     def __init__(self, args, log):
         super(SequentialModel, self).__init__(args, log)
 
-        # define the model data view.
-        self.arguments = { "DEPENDENT" : { "VARIABLE" : "pIC50", "SHAPE" : [1], "TYPE": np.float64 }
-                         , "INDEPENDENT" : [ { "VARIABLE" : "MORGAN1024", "SHAPE": [1024], "TYPE": np.float64 } ] }
+        # Define the model data view.
+        # Define the model variable types here. Documented in "OSMModelData.py".
+
+        self.arguments = { "DEPENDENT" : { "VARIABLE" : "pIC50", "SHAPE" : [1], "TYPE": OSMModelData.FLOAT64 }
+              , "INDEPENDENT" : [ { "VARIABLE" : "MORGAN1024", "SHAPE": [1024], "TYPE": OSMModelData.FLOAT64 } ] }
 
     # These functions need to be re-defined in all classifier model classes.
 
@@ -142,14 +145,9 @@ class SequentialModel(with_metaclass(ModelMetaClass, KerasClassifier)):
         predictions_array = predictions.flatten()
         return {"prediction": predictions_array, "actual": data.target_data() }
 
-    def keras_train_epoch(self, epoch):
+    def train_epoch(self, epoch):
         self.model.fit(self.data.training().input_data(), self.data.training().target_data()
                        , nb_epoch=epoch, batch_size=45, verbose=1)
-
-    def keras_train_default(self):
-        self.model.fit( self.data.training().input_data(), self.data.training().target_data()
-                        , nb_epoch=1000, batch_size=45, verbose=1)
-
 
 # ===============================================================================
 # Modified sequential class is a multi layer neural network.
@@ -161,9 +159,12 @@ class ModifiedSequential(with_metaclass(ModelMetaClass, KerasClassifier)):
     def __init__(self, args, log):
         super(ModifiedSequential, self).__init__(args, log)
 
-        # define the model data view.
-        self.arguments = { "DEPENDENT" : { "VARIABLE" : "pIC50", "SHAPE" : [1], "TYPE": np.float64 }
-                         , "INDEPENDENT" : [ { "VARIABLE" : "MORGAN2048", "SHAPE": [2048], "TYPE": np.float64 } ] }
+        self.default_epochs = 200
+
+        # Define the model data view.
+        # Define the model variable types here. Documented in "OSMModelData.py".
+        self.arguments = { "DEPENDENT" : { "VARIABLE" : "pIC50", "SHAPE" : [1], "TYPE": OSMModelData.FLOAT64 }
+              , "INDEPENDENT" : [ { "VARIABLE" : "MORGAN2048", "SHAPE": [2048], "TYPE": OSMModelData.FLOAT64 } ] }
 
     # These functions need to be re-defined in all classifier model classes.
 
@@ -196,19 +197,13 @@ class ModifiedSequential(with_metaclass(ModelMetaClass, KerasClassifier)):
 
         return model
 
-
     def model_prediction(self,data):
         predictions = self.model.predict(data.input_data(), verbose=0)
         predictions_array = predictions.flatten()
         return {"prediction": predictions_array, "actual": data.target_data()}
 
 
-    def keras_train_epoch(self, epoch):
+    def train_epoch(self, epoch):
         self.model.fit(self.data.training().input_data(), self.data.training().target_data()
                        , nb_epoch=epoch, batch_size=100, verbose=1)
-
-
-    def keras_train_default(self):  # Reduced number of default training epoches.
-        self.model.fit(self.data.training().input_data(), self.data.training().target_data()
-                       , nb_epoch=200, batch_size=100, verbose=1)
 

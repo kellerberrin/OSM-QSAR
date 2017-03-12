@@ -24,10 +24,7 @@
 #
 from __future__ import absolute_import, division, print_function, unicode_literals
 
-import os
-import sys
-import argparse
-import logging
+
 import time
 
 # REad CSVs and Generate molecular properties.
@@ -36,11 +33,6 @@ from OSMProperties import OSMGenerateData
 # Import the runtime environment object.
 from OSMExecEnv import ExecEnv, __version__
 
-# Import the various model objects
-#from OSMBase import get_model_instances
-#import OSMKeras
-#import OSMTemplate
-#import OSMSKLearn
 
 
 # ===================================================================================================

@@ -36,8 +36,9 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn import svm
 from sklearn.multiclass import OneVsRestClassifier
 from sklearn.metrics import roc_curve, auc
-from sklearn.naive_bayes import GaussianNB
-from sklearn import neighbors
+from sklearn.naive_bayes import GaussianNB, MultinomialNB, BernoulliNB
+from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
+from sklearn.neighbors import KNeighborsClassifier
 from sklearn import tree, metrics
 from sklearn.model_selection import StratifiedKFold
 from sklearn.preprocessing import StandardScaler
@@ -45,11 +46,60 @@ from sklearn.preprocessing import StandardScaler
 
 from OSMBase import ModelMetaClass  # The virtual model class.
 from OSMRegression import OSMRegression  # Display and save regression results.
-from OSMClassify import OSMClassification  # Display and save classifier results.
-
+from OSMModelData import OSMModelData  # specify variable types.
 from OSMGraphics import OSMSimilarityMap
 
 # A grab-bag of ML techniques implemented in SKLearn.
+
+
+######################################################################################################
+#
+# SKLearn regression super class - convenient place to put all the common regression functionality
+#
+######################################################################################################
+
+class OSMSKLearnRegression(with_metaclass(ModelMetaClass, OSMRegression)):
+    def __init__(self, args, log):
+        super(OSMSKLearnRegression, self).__init__(args, log)  # Edit this and change the class name.
+
+        # define the model data view.
+        # Define the model variable types here. Documented in "OSMModelData.py".
+        self.arguments = { "DEPENDENT" : { "VARIABLE" : "pIC50", "SHAPE" : [1], "TYPE": OSMModelData.FLOAT64 }
+                 , "INDEPENDENT" : [ { "VARIABLE" : "MORGAN2048_4", "SHAPE": [None], "TYPE": OSMModelData.FLOAT64 } ] }
+
+    def model_train(self):
+        self.model.fit(self.data.training().input_data(), self.data.training().target_data())
+
+    def model_prediction(self, data):
+        prediction = self.model.predict(data.input_data())
+        return {"prediction": prediction, "actual": data.target_data()}
+
+######################################################################################################
+#
+# Optional member functions.
+#
+######################################################################################################
+
+    def model_graphics(self):
+
+        def regression_probability(fp, predict_func):
+            int_list = []
+
+            for arr in fp:
+                int_list.append(arr)
+
+            shape = []
+            shape.append(int_list)
+            fp_floats = np.array(shape, dtype=float)
+            prediction = predict_func(fp_floats)[0]  # returns a prediction (not probability)
+            return prediction * -1  # Flip the sign, -ve is good.
+
+        func = lambda x: regression_probability(x, self.model.predict)
+
+        OSMSimilarityMap(self, self.data.testing(), func).maps(self.args.testDirectory)
+        if self.args.extendFlag:
+            OSMSimilarityMap(self, self.data.training(), func).maps(self.args.trainDirectory)
+
 
 ######################################################################################################
 #
@@ -57,13 +107,10 @@ from OSMGraphics import OSMSimilarityMap
 #
 ######################################################################################################
 
-class OSMSKLearnSVMR(with_metaclass(ModelMetaClass, OSMRegression)):
+
+class OSMSKLearnSVMR(with_metaclass(ModelMetaClass, OSMSKLearnRegression)):
     def __init__(self, args, log):
         super(OSMSKLearnSVMR, self).__init__(args, log)  # Edit this and change the class name.
-
-        # define the model data view.
-        self.arguments = { "DEPENDENT" : { "VARIABLE" : "pIC50", "SHAPE" : [1], "TYPE": np.float64 }
-                         , "INDEPENDENT" : [ { "VARIABLE" : "MORGAN2048", "SHAPE": [None], "TYPE": np.float64 } ] }
 
     # These functions need to be re-defined in all regression model classes.
 
@@ -81,106 +128,31 @@ class OSMSKLearnSVMR(with_metaclass(ModelMetaClass, OSMRegression)):
     def model_define(self):
         return svm.SVR(kernel=str("rbf"), C=1e3, gamma=0.00001)
 
-    def model_train(self):
-        self.model.fit(self.data.training().input_data(), self.data.training().target_data())
-
-    def model_prediction(self, data):
-        prediction = self.model.predict(data.input_data())
-        return {"prediction": prediction, "actual": data.target_data()}
 
 ######################################################################################################
 #
-# Optional member functions.
-#
-######################################################################################################
-
-    def model_graphics(self):
-
-        def svmr_probability(fp, predict_func):
-            int_list = []
-
-            for arr in fp:
-                int_list.append(arr)
-
-            shape = []
-            shape.append(int_list)
-            fp_floats = np.array(shape, dtype=float)
-            prediction = predict_func(fp_floats)[0]  # returns a prediction (not probability)
-            return prediction * -1  # Flip the sign, -ve is good.
-
-        func = lambda x: svmr_probability(x, self.model.predict)
-
-        OSMSimilarityMap(self, self.data.testing(), func).maps(self.args.testDirectory)
-        if self.args.extendFlag:
-            OSMSimilarityMap(self, self.data.training(), func).maps(self.args.trainDirectory)
-
-
-
-######################################################################################################
-#
-# Support Vector Machine Implemented as a classifier.
+# Decision Tree Implemented as a regression.
 #
 ######################################################################################################
 
 
-class OSMSKLearnSVMC(with_metaclass(ModelMetaClass, OSMClassification)):
+class OSMSKLearnDTR(with_metaclass(ModelMetaClass, OSMSKLearnRegression)):
     def __init__(self, args, log):
-        super(OSMSKLearnSVMC, self).__init__(args, log)  # Edit this and change the class name.
+        super(OSMSKLearnDTR, self).__init__(args, log)  # Edit this and change the class name.
 
-        # define the model data view.
-        self.arguments = { "DEPENDENT" : { "VARIABLE" : "ION_ACTIVITY", "SHAPE" : [1], "TYPE": np.str }
-                         , "INDEPENDENT" : [ { "VARIABLE" : "MORGAN2048", "SHAPE": [None], "TYPE": np.float64 } ] }
-
-    # These functions need to be re-defined in all classifier model classes.
+    # These functions need to be re-defined in all regression model classes.
 
     def model_name(self):
-        return "Support Vector Machine (SVM) Classifier"  # Model name string.
+        return "Decision Tree (DTR), Regression"  # Model name string.
 
     def model_postfix(self):  # Must be unique for each model.
-        return "svmc"
+        return "dtr"
 
     def model_description(self):
-        return ("Implements the Support Vector Machine (SVM) Classifier defined in the SKLearn modules.\n"
-                " This SVM (postfix svmc) is configured as a label classifier.\n"
+        return ("Implements the Decision (DTR) Regression defined in the SKLearn modules.\n"
                 " For more information, Google SKLearn and read the documentation.\n")
 
     def model_define(self):
-        return OneVsRestClassifier(svm.SVC(kernel=str("rbf"), probability=True, C=1e3, gamma=0.00001))
+        return DecisionTreeRegressor(criterion="mae")
 
-    def model_train(self):
-        # Restrict the SVM to 1 input argument
-        self.model.fit(self.data.training().input_data(), self.data.training().target_data())
-
-    def model_prediction(self, data):
-        prediction = self.model.predict(data.input_data())
-        return {"prediction": prediction, "actual": data.target_data()}
-
-    def model_probability(self, data):  # probabilities are returned as a numpy.shape = (samples, classes)
-        probability = self.model.predict_proba(data.input_data())
-        return {"probability": probability}
-
-    ######################################################################################################
-    #
-    # Optional member functions.
-    #
-    ######################################################################################################
-
-    def model_graphics(self):
-
-        def classifier_probability(fp, prob_func):
-            int_list = []
-
-            for arr in fp:
-                int_list.append(arr)
-
-            shape = [int_list]
-            fp_floats = np.array(shape, dtype=float)
-            active_prob = prob_func(fp_floats)[0][0]  # returns an "active" probability (element[0]).
-            return active_prob
-
-        func = lambda x: classifier_probability(x, self.model.predict_proba)
-
-        OSMSimilarityMap(self, self.data.testing(), func).maps(self.args.testDirectory)
-        if self.args.extendFlag:
-            OSMSimilarityMap(self, self.data.training(), func).maps(self.args.trainDirectory)
 

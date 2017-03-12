@@ -39,8 +39,9 @@ class OSMRegressionTemplate(with_metaclass(ModelMetaClass, OSMRegression)):  # E
     def __init__(self, args, log):
         super(OSMRegressionTemplate, self).__init__(args, log)  # Edit this and change the class name.
 
-        self.arguments = { "DEPENDENT" : { "VARIABLE" : "IC50", "SHAPE" : [1], "TYPE": np.float64 }
-                         , "INDEPENDENT" : [ { "VARIABLE" : "IC50", "SHAPE": [1], "TYPE": np.float64 } ] }
+        # Define the model variable types here. Documented in "OSMModelData.py".
+        self.arguments = { "DEPENDENT" : { "VARIABLE" : "IC50", "SHAPE" : [1], "TYPE": OSMModelData.FLOAT64 }
+                         , "INDEPENDENT" : [ { "VARIABLE" : "IC50", "SHAPE": None, "TYPE": None } ] }
 
     # These functions need to be re-defined in all classifier model classes.
 
@@ -61,21 +62,13 @@ class OSMRegressionTemplate(with_metaclass(ModelMetaClass, OSMRegression)):  # E
                 " That's all. All the statistics, analytics and (implemented) graphics functionality\n"
                 " are now used by your model.")
 
-    def model_define(self):
-        return None  # Should return a model.
-
-    def model_arguments(self):
-        return self.arguments
-
-    def model_create_data(self, data):
-        return OSMModelData(self.args, self.log, self, data)
+    def model_define(self): return None  # Should return a model.
 
     def model_train(self): pass
 
-    def model_read(self, file_name):
-        return None  # should return a model, can just return model_define() if there is no model file.
+    def model_read(self): return None # (Optional) read a model from disk and returns it
 
-    def model_write(self, file_name): pass
+    def model_write(self): pass # (Optional) write a model to disk.
 
     def model_prediction(self, data):
         return {"prediction": data.target_data(), "actual": data.target_data()}
@@ -93,8 +86,9 @@ class OSMClassificationTemplate(with_metaclass(ModelMetaClass, OSMClassification
     def __init__(self, args, log):
         super(OSMClassificationTemplate, self).__init__(args, log)  # Edit this and change the class name.
 
-        self.arguments = { "DEPENDENT" : { "VARIABLE" : "ION_ACTIVITY", "SHAPE" : [1], "TYPE": np.str }
-                         , "INDEPENDENT" : [ { "VARIABLE" : "ION_ACTIVITY", "SHAPE": [1], "TYPE": np.str } ] }
+    # Define the model variable types here. Documented in "OSMModelData.py".
+        self.arguments = { "DEPENDENT" : { "VARIABLE" : "ION_ACTIVITY", "SHAPE" : [None], "TYPE": OSMModelData.CLASSES }
+                  , "INDEPENDENT" : [ { "VARIABLE" : "MORGAN2048", "SHAPE": None, "TYPE": None } ] }
 
     # These functions need to be re-defined in all classifier model classes.
 
@@ -115,16 +109,13 @@ class OSMClassificationTemplate(with_metaclass(ModelMetaClass, OSMClassification
                 " That's all. All the statistics, analytics and (implemented) graphics functionality\n"
                 " are now used by your model.")
 
-    def model_define(self):
-        return None  # Should return a model.
-
+    def model_define(self): return None  # Should return a model.
 
     def model_train(self): pass
 
-    def model_read(self, file_name):
-        return None  # should return a model, can just return model_define() if there is no model file.
+    def model_read(self): return None  # (Optional) read a model from disk and returns it.
 
-    def model_write(self, file_name): pass
+    def model_write(self): pass  # (Optional) write a model to disk.
 
     def model_prediction(self, data): # prediction and actual are returned as one hot vectors.
         return {"prediction": data.target_data(), "actual": data.target_data() }

@@ -34,6 +34,7 @@ from sklearn.metrics import auc, roc_auc_score, confusion_matrix
 from sklearn.preprocessing import label_binarize
 
 from OSMBase import OSMBaseModel
+from OSMModelData import OSMModelData
 
 # ============================================================================
 # The Classification Results Presentation Object.
@@ -179,6 +180,7 @@ class OSMClassification(OSMBaseModel):
         self.log.info("Dependent (Target) Variable: %s", dependent_var)
         for var in independent_list:
             self.log.info("Independent (Input) Variable(s): %s", var)
+        self.log.info("Training Epochs: %d", self.model_epochs())
         self.log.info("Test Compounds macro AUC: %f", statistics["macro_auc"])
         self.log.info("Test Compounds micro AUC: %f", statistics["micro_auc"])
         if statistics["class_auc"] is not None:
@@ -220,15 +222,17 @@ class OSMClassification(OSMBaseModel):
                 stats_file.write(line)
                 line = "Model, {}\n".format(self.model_name())
                 stats_file.write(line)
-                line = "Runtime, {}\n".format(time.asctime(time.localtime(time.time())))
-                stats_file.write(line)
-                line = "CPUtime, {}\n".format(time.clock())
-                stats_file.write(line)
                 line = "DependentVar(Target), {}\n".format(dependent_var)
                 stats_file.write(line)
                 for var in independent_list:
                     line = "IndependentVar(Input), {}\n".format(var)
                     stats_file.write(line)
+                line = "TrainingEpochs, {}\n".format(self.model_epochs())
+                stats_file.write(line)
+                line = "Runtime, {}\n".format(time.asctime(time.localtime(time.time())))
+                stats_file.write(line)
+                line = "CPUtime, {}\n".format(time.clock())
+                stats_file.write(line)
                 line = "++++++++++++++++,Test_Statistics,++++++++++++++++\n"
                 stats_file.write(line)
                 line = "Macro AUC, {}\n".format(statistics["macro_auc"])
@@ -277,12 +281,10 @@ class OSMClassification(OSMBaseModel):
 
     def model_enumerate_classes(self):
 
-        class_set = set(self.data.training().target_data())
-        test_class_set = set(self.data.testing().target_data())
-        if not test_class_set <= class_set:
-            self.log.error("There are test classes %s that are not in the training class set %s",
-                           ",".join(list(test_class_set)), ",".join(list(class_set)))
+        training_classes = OSMModelData.enumerate_classes(self.data.training().target_data())
+        test_classes = OSMModelData.enumerate_classes(self.data.testing().target_data())
+        if not set(test_classes) <= set(training_classes):
+            self.log.error("There are test classes %s not in the set of training classes %s",
+                           ",".join(test_classes), ",".join(training_classes))
             sys.exit()
-        class_list = list(class_set)  # convert back to set
-        sorted_class_list = sorted(class_list)   # ascending sort.
-        return sorted_class_list
+        return training_classes

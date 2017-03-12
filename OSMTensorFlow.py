@@ -33,7 +33,9 @@ import tensorflow as tf
 
 from OSMBase import ModelMetaClass  # The virtual model class.
 from OSMClassify import OSMClassification  # Display and save regression results.
+from OSMModelData import OSMModelData
 from OSMGraphics import OSMSimilarityMap
+from OSMIterative import OSMIterative
 
 
 # ===============================================================================
@@ -45,22 +47,43 @@ class TensorFlowClassifier(OSMClassification):
     def __init__(self, args, log):
         super(TensorFlowClassifier, self).__init__(args, log)
 
+        self.default_epochs = 1000
+
+        self.iterative = OSMIterative(self)
+
+
     # ===============================================================================
     # Base class for the Keras neural network classifiers.
     # ===============================================================================
 
-    def model_read(self, file_name):
-        self.log.info("TENSORFLOW - Loading Pre-Trained %s Model File: %s", self.model_name(), file_name)
-        return self.model_define()
+    def model_write(self):
+        self.iterative.write()
 
-    def model_write(self, file_name):
-        self.log.info("TENSORFLOW - Saving Trained %s Model in File: %s", self.model_name(), file_name)
+    def model_read(self):
+        return self.iterative.read()
+
+    def model_train(self):
+        self.iterative.train(self.default_epochs)
+
+    def model_epochs(self):
+        return self.iterative.trained_epochs()
+
+    def epoch_read(self, epoch):
+        self.log.info("TENSORFLOW - Loading Pre-Trained %s Model File: %s, epoch: %d"
+                      , self.model_name(), self.args.loadFilename, epoch)
+        file_name = self.args.loadFilename + "-" + "{}".format(epoch)
+        model = self.model_define()
         saver = tf.train.Saver()
-        saver.save(self.model["sess"], file_name)
+        saver.restore(model["sess"], file_name)
+        return model
 
+    def epoch_write(self, epoch):
+        self.log.info("TENSORFLOW - Saving Trained %s Model in File: %s, epoch %d"
+                      , self.model_name(), self.args.saveFilename, epoch)
+        saver = tf.train.Saver()
+        saver.save(self.model["sess"], self.args.saveFilename, global_step=epoch)
 
     def model_graphics(self):
-
 
         def tensorflow_probability(fp, model):
             int_list = []
@@ -76,10 +99,10 @@ class TensorFlowClassifier(OSMClassification):
 
         func = lambda x: tensorflow_probability(x, self.model)
 
-
-        OSMSimilarityMap(self, self.data.testing(), func).maps(self.args.testDirectory)
-        if self.args.extendFlag:
-            OSMSimilarityMap(self, self.data.training(), func).maps(self.args.trainDirectory)
+        if self.args.checkPoint < 0 or self.args.extendFlag:
+            OSMSimilarityMap(self, self.data.testing(), func).maps(self.args.testDirectory)
+            if self.args.extendFlag:
+                OSMSimilarityMap(self, self.data.training(), func).maps(self.args.trainDirectory)
 
 
 # ===============================================================================
@@ -92,8 +115,9 @@ class TensorFlowSimpleClassifier(with_metaclass(ModelMetaClass, TensorFlowClassi
         super(TensorFlowSimpleClassifier, self).__init__(args, log)
 
         # define the model data view.
-        self.arguments = { "DEPENDENT" : { "VARIABLE" : "IC50_ACTIVITY", "SHAPE" : [1], "TYPE": np.str }
-                         , "INDEPENDENT" : [ { "VARIABLE" : "MORGAN2048", "SHAPE": [2048], "TYPE": np.float64 } ] }
+        # Define the model variable types here. Documented in "OSMModelData.py".
+        self.arguments = { "DEPENDENT" : { "VARIABLE" : "IC50_ACTIVITY", "SHAPE" : [3], "TYPE": OSMModelData.CLASSES }
+                    , "INDEPENDENT" : [ { "VARIABLE" : "MORGAN2048_4", "SHAPE": [2048], "TYPE": OSMModelData.FLOAT64 } ] }
 
     # These functions need to be re-defined in all classifier model classes.
 
@@ -112,8 +136,8 @@ class TensorFlowSimpleClassifier(with_metaclass(ModelMetaClass, TensorFlowClassi
 
         # Create the model
         ph_input = tf.placeholder(tf.float32, [None, 2048])
-        W = tf.Variable(tf.zeros([2048, 3]))
-        b = tf.Variable(tf.zeros([3]))
+        W = tf.Variable(tf.zeros([2048, 3]), name="Weights")
+        b = tf.Variable(tf.zeros([3]), name="Bias")
         ph_predict = tf.matmul(ph_input, W) + b
 
         # Define loss and optimizer
@@ -134,7 +158,8 @@ class TensorFlowSimpleClassifier(with_metaclass(ModelMetaClass, TensorFlowClassi
         train_step = tf.train.GradientDescentOptimizer(0.5).minimize(cross_entropy)
 
         sess = tf.Session()
-        tf.global_variables_initializer().run(session=sess)
+        init_op = tf.global_variables_initializer()
+        sess.run(init_op)
 
         model = {"sess" : sess, "train_step" : train_step, "ph_input" : ph_input,
                 "ph_target" : ph_target , "ph_predict" : ph_predict, "ph_probability": ph_probability}
@@ -156,7 +181,7 @@ class TensorFlowSimpleClassifier(with_metaclass(ModelMetaClass, TensorFlowClassi
 
         return {"prediction": predicted_classes, "actual": data.target_data()}
 
-    def model_train(self):
+    def train_epoch(self, epoch):
 
         classes = self.model_enumerate_classes()
         # Train
@@ -167,8 +192,9 @@ class TensorFlowSimpleClassifier(with_metaclass(ModelMetaClass, TensorFlowClassi
 
         train_one_hot = label_binarize(self.data.training().target_data(), classes)
 
-        for _ in range(1000):
+        for _ in range(epoch):
             sess.run(train_step, feed_dict={ph_input: self.data.training().input_data(), ph_target: train_one_hot})
+
 
     def model_probability(self, data):  # probabilities are returned as a numpy.shape = (samples, classes)
 

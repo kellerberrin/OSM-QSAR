@@ -34,10 +34,11 @@ import time
 from OSMBase import get_model_instances
 import OSMKeras
 import OSMTemplate
-import OSMSKLearn
+import OSMSKLearnRegress
+import OSMSKLearnClassify
 import OSMTensorFlow
 
-__version__ = "0.1"
+__version__ = "0.2"
 
 # ===================================================================================================
 # A utility class to parse the program runtime arguments
@@ -124,26 +125,23 @@ class ExecEnv(object):
         # --vars
         parser.add_argument("--vars", dest="varFlag", action="store_true",
                             help=("Lists all the data variables available in the data dictionary and exits."))
-
         # --load
         parser.add_argument("--load", dest="loadFilename", default="noload",
                             help=("Loads the saved model and generates statistics and graphics but does no "
                                   " further training."
+                                  ' If the model is a Neural Network then the "--epoch" flag can be optionally'
+                                  " specified to read to a particular NN epoch model."
                                   " This file is always located in the model <postfix> subdirectory of the Work"
-                                  ' directory. For example, specifying "mymodel.mdl"'
-                                  ' loads "./<WorkDir>/<postfix>/mymodel.mdl".'))
-        # --retrain
-        parser.add_argument("--retrain", dest="retrainFilename", default="noretrain",
-                            help=("Loads the saved model, retrains and generates statistics and graphics."
-                                  " This file is always located in the model <postfix> subdirectory of the Work"
-                                  ' directory. For example, specifying "mymodel.mdl"'
-                                  ' loads "./<WorkDir>/<postfix>/mymodel.mdl".'))
+                                  ' directory. For example, specifying "--load mymodel --epoch 1000 --train 0" for '
+                                  ' a KERAS NN loads "./<WorkDir>/<postfix>/mymodel_1000.krs" and generates'
+                                  ' model statistics and graphics without further training'))
         # --save
-        parser.add_argument("--save", dest="saveFilename", default="OSMClassifier.mdl",
-                            help=('File name to save the model (default "OSMClassifier.mdl").'
+        parser.add_argument("--save", dest="saveFilename", default="OSMClassifier",
+                            help=('File name to save the model (default "OSMClassifier").'
                                   ' The model file is always saved to the model postfix subdirectory.'
-                                  ' For example, if this flag is not specified the model is saved to:'
-                                  ' "./<WorkDir>/postfix/OSMClassifier.mdl".'
+                                  ' Neural Networks append the training epoch to the file name.'
+                                  ' For example, if a KERAS NN classifier is saved and if this flag is not specified '
+                                  ' the model is saved to: "./<WorkDir>/postfix/OSMClassifier_<epoch>.krs".'
                                   ' The postfix directory is created if it does not exist.'))
         # --stats
         parser.add_argument("--stats", dest="statsFilename", default="OSMStatistics.csv",
@@ -183,11 +181,19 @@ class ExecEnv(object):
         parser.add_argument("--classify", dest="classifyType", default="seq", help=classify_help)
         # --epoch
         parser.add_argument("--epoch", dest="epoch", default=-1, type=int,
-                            help='The number of training epochs (iterations). Ignored if not valid for model.')
+                            help=(" Compulsory when loading Neural Networks and other iterative models."
+                                  " Used to specify which training epoch to load'"
+                                  " and retrain. Ignored if not valid for model.  Example:"
+                                  '"--classify mod --load OSMClassifier -- epoch 1000 --train 0"'
+                                  ' loads the KERAS "mod" model from "./<WorkDir>/mod/OSMClassifier_1000.krs"'
+                                  ' and generates model statistics and graphics without further training'))
+        # --train
+        parser.add_argument("--train", dest="train", default=-1, type=int,
+                            help=("The number of training epochs (iterations). Ignored if not valid for model."))
         # --check
         parser.add_argument("--check", dest="checkPoint", default=-1, type=int,
                             help=('Number of iterations the training model is saved. Statistics are generated'
-                                  ' at each checkpoint. Must be used with --epoch e.g. "--epoch 2000 --check 500".'))
+                                  ' at each checkpoint. Must be used with --train e.g. "--train 2000 --check 500".'))
         # --version
         parser.add_argument("--version", action="version", version=__version__)
 
@@ -242,29 +248,29 @@ class ExecEnv(object):
             ExecEnv.log.error("Check the work directory: %s permissions.", ExecEnv.args.workDirectory)
             sys.exit()
 
+        if ExecEnv.args.cleanFlag:
         # clean the postfix subdirectories if the "--clean" flag is specified..
-        try:
-            for file_name in os.listdir(test_directory):
-                file_path = os.path.join(test_directory, file_name)
-                if os.path.isfile(file_path):
-                    os.unlink(file_path)
-            for file_name in os.listdir(train_directory):
-                file_path = os.path.join(train_directory, file_name)
-                if os.path.isfile(file_path):
-                    os.unlink(file_path)
-        except OSError:
-            ExecEnv.log.error('Specified the "--clean" flag. Could not delete file(s)')
-            ExecEnv.log.error("Check <postfix> subdirectories and file permissions.")
-            sys.exit()
+            ExecEnv.log.info('"--clean" specified, deleting all files in directory: "%s"', test_directory)
+            ExecEnv.log.info('"--clean" specified, deleting all files in directory: "%s"', train_directory)
+            try:
+                for file_name in os.listdir(test_directory):
+                    file_path = os.path.join(test_directory, file_name)
+                    if os.path.isfile(file_path):
+                        os.unlink(file_path)
+                for file_name in os.listdir(train_directory):
+                    file_path = os.path.join(train_directory, file_name)
+                    if os.path.isfile(file_path):
+                        os.unlink(file_path)
+            except OSError:
+                ExecEnv.log.error('Specified the "--clean" flag. Could not delete file(s)')
+                ExecEnv.log.error("Check <postfix> subdirectories and file permissions.")
+                sys.exit()
 
 
         ExecEnv.args.dataFilename = os.path.join(ExecEnv.args.workDirectory, ExecEnv.args.dataFilename)
 
         if ExecEnv.args.loadFilename != "noload":
             ExecEnv.args.loadFilename = os.path.join(postfix_directory,ExecEnv.args.loadFilename)
-
-        if ExecEnv.args.retrainFilename != "noretrain":
-            ExecEnv.args.retrainFilename = os.path.join(postfix_directory,ExecEnv.args.retrainFilename)
 
         ExecEnv.args.saveFilename = os.path.join(postfix_directory,ExecEnv.args.saveFilename)
 
@@ -275,7 +281,7 @@ class ExecEnv(object):
             log_append = False
             self.setup_file_logging(ExecEnv.args.newLogFilename, log_append, file_log_format)
 
-        elif ExecEnv.args.newLogFilename is not None:  # No filename supplied (optional arg).
+        elif ExecEnv.args.newLogFilename != "nonewlog":  # No filename supplied (optional arg).
             ExecEnv.args.newLogFilename = os.path.join(ExecEnv.args.workDirectory,"OSM_QSAR.log")
             log_append = False
             self.setup_file_logging(ExecEnv.args.newLogFilename, log_append, file_log_format)
@@ -359,7 +365,7 @@ class ExecEnv(object):
         file_log.setFormatter(log_format)
 
         ExecEnv.log.addHandler(file_log)
-        if append:
+        if not append:
             ExecEnv.log.info("Flushed logfile: %s", log_filename)
         ExecEnv.log.info("Logging to file: %s", log_filename)
 

@@ -156,6 +156,8 @@ class OSMRegression(OSMBaseModel):
         for var in independent_list:
             self.log.info("Independent (Input) Variable(s): %s", var)
 
+        self.log.info("Training Epochs: %d", self.model_epochs())
+
         self.log.info("Test Compounds %s Mean Unsigned Error (MUE): %f", dependent_var, statistics["MUE"])
         self.log.info("Test Compounds %s RMS Error: %f", dependent_var, statistics["RMSE"])
 
@@ -200,6 +202,8 @@ class OSMRegression(OSMBaseModel):
                 for var in independent_list:
                     line = "IndependentVar(Input), {}\n".format(var)
                     stats_file.write(line)
+                line = "TrainingEpochs, {}\n".format(self.model_epochs())
+                stats_file.write(line)
                 line = "Runtime, {}\n".format(time.asctime(time.localtime(time.time())))
                 stats_file.write(line)
                 line = "CPUtime, {}\n".format(time.clock())

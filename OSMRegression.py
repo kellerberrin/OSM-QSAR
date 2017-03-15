@@ -29,6 +29,7 @@ import time
 import math
 
 import scipy.stats as st
+from sklearn.metrics import r2_score
 
 from OSMBase import OSMBaseModel
 
@@ -91,6 +92,10 @@ class OSMRegression(OSMBaseModel):
         RMSE = RMSE / len(predict)
         RMSE = math.sqrt(RMSE)
 
+        # R^2
+
+        R2 = r2_score(actual, predict)
+
         # Sort rankings.
 
         predict_ranks = st.rankdata(predict, method='average')
@@ -109,7 +114,7 @@ class OSMRegression(OSMBaseModel):
 
         # Return the model analysis statistics in a dictionary.
         return {"MUE": MUE, "RMSE": RMSE, "predict_ranks": predict_ranks,
-                "actual_ranks": actual_ranks, "kendall": kendall, "spearman": spearman}
+                "actual_ranks": actual_ranks, "kendall": kendall, "spearman": spearman, "R2" : R2}
 
 
     def model_prediction_records(self, data, predictions, statistics):
@@ -140,6 +145,7 @@ class OSMRegression(OSMBaseModel):
 
     def log_train_statistics(self, train, statistics, predictions):
 
+        self.log.info("Training Compounds R-squared (R^2): %f", statistics["R2"])
         self.log.info("Training Compounds Mean Unsigned Error (MUE): %f", self.train_stats["MUE"])
         self.log.info("Training Compounds RMS Error: %f", self.train_stats["RMSE"])
 
@@ -158,6 +164,7 @@ class OSMRegression(OSMBaseModel):
 
         self.log.info("Training Epochs: %d", self.model_epochs())
 
+        self.log.info("Test Compounds %s R-squared (R^2): %f", dependent_var, statistics["R2"])
         self.log.info("Test Compounds %s Mean Unsigned Error (MUE): %f", dependent_var, statistics["MUE"])
         self.log.info("Test Compounds %s RMS Error: %f", dependent_var, statistics["RMSE"])
 
@@ -209,6 +216,8 @@ class OSMRegression(OSMBaseModel):
                 line = "CPUtime, {}\n".format(time.clock())
                 stats_file.write(line)
                 line = "++++++++++++++++,Test_Statistics,++++++++++++++++\n"
+                stats_file.write(line)
+                line = "R^2, {}\n".format(statistics["R2"])
                 stats_file.write(line)
                 line = "MUE, {}\n".format(statistics["MUE"])
                 stats_file.write(line)

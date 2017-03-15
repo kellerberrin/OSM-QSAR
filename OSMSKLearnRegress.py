@@ -38,6 +38,7 @@ from sklearn.multiclass import OneVsRestClassifier
 from sklearn.metrics import roc_curve, auc
 from sklearn.naive_bayes import GaussianNB, MultinomialNB, BernoulliNB
 from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
+from sklearn.linear_model import LinearRegression
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn import tree, metrics
 from sklearn.model_selection import StratifiedKFold
@@ -99,6 +100,32 @@ class OSMSKLearnRegression(with_metaclass(ModelMetaClass, OSMRegression)):
         OSMSimilarityMap(self, self.data.testing(), func).maps(self.args.testDirectory)
         if self.args.extendFlag:
             OSMSimilarityMap(self, self.data.training(), func).maps(self.args.trainDirectory)
+
+    ######################################################################################################
+    #
+    # Support Vector Machine Implemented as a regression.
+    #
+    ######################################################################################################
+
+
+class OSMSKLearnSLR(with_metaclass(ModelMetaClass, OSMSKLearnRegression)):
+    def __init__(self, args, log):
+        super(OSMSKLearnSLR, self).__init__(args, log)  # Edit this and change the class name.
+
+    # These functions need to be re-defined in all regression model classes.
+
+    def model_name(self):
+        return "Simple Linear Regression (SLR), Regression"  # Model name string.
+
+    def model_postfix(self):  # Must be unique for each model.
+        return "slr"
+
+    def model_description(self):
+        return ("Implements a Simple (Least Squares) (SVM) Regression defined in the SKLearn modules.\n"
+                " For more information, Google SKLearn and read the documentation.\n")
+
+    def model_define(self):
+        return LinearRegression(fit_intercept=True, normalize=False, copy_X=True, n_jobs=1)
 
 
 ######################################################################################################

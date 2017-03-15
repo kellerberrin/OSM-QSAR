@@ -39,6 +39,7 @@ from sklearn.metrics import roc_curve, auc
 from sklearn.naive_bayes import GaussianNB, MultinomialNB, BernoulliNB
 from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 from sklearn.neighbors import KNeighborsClassifier
+from sklearn.linear_model import LogisticRegression
 from sklearn import tree, metrics
 from sklearn.model_selection import StratifiedKFold
 from sklearn.preprocessing import StandardScaler
@@ -244,3 +245,30 @@ class OSMSKLearnKNNC(with_metaclass(ModelMetaClass, OSMSKLearnClassifier)):
 
     def model_define(self):
         return KNeighborsClassifier(n_neighbors=5, weights="uniform", algorithm="auto")
+
+######################################################################################################
+#
+# K Nearest Neighbours. Implemented as a classifier.
+#
+######################################################################################################
+
+
+class OSMSKLearnLOGC(with_metaclass(ModelMetaClass, OSMSKLearnClassifier)):
+    def __init__(self, args, log):
+        super(OSMSKLearnLOGC, self).__init__(args, log)  # Edit this and change the class name.
+
+    # These functions need to be re-defined in all classifier model classes.
+
+    def model_name(self):
+        return "Logistic (LOGC) Classifier"  # Model name string.
+
+    def model_postfix(self):  # Must be unique for each model.
+        return "logc"
+
+    def model_description(self):
+        return ("Implements the Logistic (LOGC) Classifier defined in the SKLearn modules.\n"
+                " For more information, Google SKLearn and read the documentation.\n")
+
+    def model_define(self):
+        return LogisticRegression(penalty='l2', dual=False, tol=0.0001, C=1.0)
+

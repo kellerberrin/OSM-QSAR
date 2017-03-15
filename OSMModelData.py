@@ -24,6 +24,8 @@
 #
 from __future__ import absolute_import, division, print_function, unicode_literals
 
+from sklearn.preprocessing import StandardScaler, RobustScaler, MinMaxScaler
+
 import sys
 import numpy as np
 import pandas as pd
@@ -214,6 +216,9 @@ class OSMModelData(object):
             if arg["TYPE"] == np.float64: # convert to numeric.
                 try:
                     pd.to_numeric(self.model_df[arg["VARIABLE"]])
+                    self.model_df.dropna(subset=[arg["VARIABLE"]], inplace=True)  # Delete all NaN rows.
+                    self.scale_numeric(arg)
+
                 except ValueError:
                     self.log.error("Problem converting variable %s to floats", arg["VARIABLE"])
                     sys.exit()
@@ -239,6 +244,14 @@ class OSMModelData(object):
         if self.model_df[arg["VARIABLE"]].shape[0] == 0:
             self.log.error("No valid values in for variable %s (check string or numeric)", arg["VARIABLE"])
             sys.exit()
+
+    def scale_numeric(self, arg):
+        narray = self.model_df[arg["VARIABLE"]].as_matrix()
+        narray = narray.astype(np.float64)
+        scaler = StandardScaler()
+        nscaled = scaler.fit_transform(narray)
+        nscaled = nscaled * 0.1
+        self.model_df[arg["VARIABLE"]] = nscaled
 
     def create_train_test(self):
         train = self.model_df.loc[self.model_df["CLASS"] == "TRAIN"]

@@ -100,10 +100,17 @@ class ExecEnv(object):
         parser.add_argument("--data", dest="dataFilename", default="OSMData.csv",
                             help=('The input data filename (default "OSMData.csv").'
                                  " Important - to run OSM_QSAR this file must exist in the Work directory."
-                                 ' For example, if this flag is not specified then OSM_QSAR attempts to read the'
+                                 ' If this flag is not specified then OSM_QSAR attempts to read the'
                                  ' data file at "/<WorkDir>/OSMData.csv".'
                                  " See the additional OSM_QSAR documentation for the format of this file."))
 
+        # --data
+        parser.add_argument("--dragon", dest="dragonFilename", default="Dragon.csv",
+                            help=('The Dragon QSAR data filename (default "Dragon.csv").'
+                                 " Important - to run OSM_QSAR this file must exist in the Work directory."
+                                 ' If this flag is not specified then OSM_QSAR attempts to read the'
+                                 ' data file at "/<WorkDir>/Dragon.csv".'
+                                 " See the additional OSM_QSAR documentation for the format of this file."))
         # --depend
         parser.add_argument("--depend", dest="dependVar", default="default",
                             help=('The regression or classifier dependent variable.'
@@ -266,8 +273,8 @@ class ExecEnv(object):
                 ExecEnv.log.error("Check <postfix> subdirectories and file permissions.")
                 sys.exit()
 
-
         ExecEnv.args.dataFilename = os.path.join(ExecEnv.args.workDirectory, ExecEnv.args.dataFilename)
+        ExecEnv.args.dragonFilename = os.path.join(ExecEnv.args.workDirectory, ExecEnv.args.dragonFilename)
 
         if ExecEnv.args.loadFilename != "noload":
             ExecEnv.args.loadFilename = os.path.join(postfix_directory,ExecEnv.args.loadFilename)

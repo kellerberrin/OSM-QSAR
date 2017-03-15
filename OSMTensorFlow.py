@@ -24,7 +24,7 @@
 # Python 2 and Python 3 compatibility imports.
 from __future__ import absolute_import, division, print_function, unicode_literals
 from six import with_metaclass
-
+import os
 
 import numpy as np
 from sklearn.preprocessing import label_binarize
@@ -39,7 +39,7 @@ from OSMIterative import OSMIterative
 
 
 # ===============================================================================
-# Base class for the Keras neural network classifiers.
+# Base class for Tensor flow neural network classifiers.
 # ===============================================================================
 
 class TensorFlowClassifier(OSMClassification):
@@ -52,9 +52,9 @@ class TensorFlowClassifier(OSMClassification):
         self.iterative = OSMIterative(self)
 
 
-    # ===============================================================================
-    # Base class for the Keras neural network classifiers.
-    # ===============================================================================
+# ===============================================================================
+# Base class for Tensor flow neural network classifiers.
+# ===============================================================================
 
     def model_write(self):
         self.iterative.write()
@@ -203,4 +203,196 @@ class TensorFlowSimpleClassifier(with_metaclass(ModelMetaClass, TensorFlowClassi
         ph_probability = self.model["ph_probability"]
         probability = sess.run(ph_probability, feed_dict={ph_input : data.input_data()})
         return {"probability": probability}
+
+
+
+# ===============================================================================
+# A simple tensorflow example
+# ===============================================================================
+
+class DTensorFlowSimpleClassifier(with_metaclass(ModelMetaClass, TensorFlowClassifier)):
+
+    def __init__(self, args, log):
+        super(DTensorFlowSimpleClassifier, self).__init__(args, log)
+
+        # define the model data view.
+        # Define the model variable types here. Documented in "OSMModelData.py".
+        self.arguments = { "DEPENDENT" : { "VARIABLE" : "IC50_ACTIVITY", "SHAPE" : [3], "TYPE": OSMModelData.CLASSES }
+                    , "INDEPENDENT" : [ { "VARIABLE" : "DRAGON", "SHAPE": [1552], "TYPE": OSMModelData.FLOAT64 } ] }
+
+    # These functions need to be re-defined in all classifier model classes.
+
+    def model_name(self):
+        return "Simple TENSORFLOW Classifier"
+
+    def model_postfix(self):  # Must be unique for each model.
+        return "tfd"
+
+    def model_description(self):
+        return ("A simple TENSORFLOW based Neural Network classifier based on the example simple MNIST classifier.\n"
+                "See extensive documentation at: http://tensorflow.org/tutorials/mnist/beginners/index.md\n")
+
+    def model_define(self):
+
+        # Create the model
+        ph_input = tf.placeholder(tf.float32, [None, 1552])
+        W = tf.Variable(tf.zeros([1552, 3]), name="Weights")
+        b = tf.Variable(tf.zeros([3]), name="Bias")
+        ph_predict = tf.matmul(ph_input, W) + b
+
+        # Define loss and optimizer
+        ph_target = tf.placeholder(tf.float32, [None, 3])
+        # Define the probability function.
+        ph_probability = tf.nn.softmax(ph_predict)
+
+        # The raw formulation of cross-entropy,
+        #
+        #   tf.reduce_mean(-tf.reduce_sum(y_ * tf.log(tf.nn.softmax(y)),
+        #                                 reduction_indices=[1]))
+        #
+        # can be numerically unstable.
+        #
+        # So here we use tf.nn.softmax_cross_entropy_with_logits on the raw
+        # outputs of 'y', and then average across the batch.
+        cross_entropy = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=ph_target, logits=ph_predict))
+        train_step = tf.train.GradientDescentOptimizer(0.5).minimize(cross_entropy)
+
+        sess = tf.Session()
+        init_op = tf.global_variables_initializer()
+        sess.run(init_op)
+
+        model = {"sess" : sess, "train_step" : train_step, "ph_input" : ph_input,
+                "ph_target" : ph_target , "ph_predict" : ph_predict, "ph_probability": ph_probability}
+
+        return model
+
+    def model_prediction(self, data):
+
+        classes = self.model_enumerate_classes()
+
+        sess = self.model["sess"]
+        ph_predict = self.model["ph_predict"]
+        ph_input = self.model["ph_input"]
+
+        predict_class_index = sess.run(tf.argmax(ph_predict, 1), feed_dict={ph_input : data.input_data()})
+        predicted_classes = []
+        for prediction in predict_class_index:
+            predicted_classes.append(classes[prediction])
+
+        return {"prediction": predicted_classes, "actual": data.target_data()}
+
+    def train_epoch(self, epoch):
+
+        classes = self.model_enumerate_classes()
+        # Train
+        sess = self.model["sess"]
+        train_step = self.model["train_step"]
+        ph_target = self.model["ph_target"]
+        ph_input = self.model["ph_input"]
+
+        train_one_hot = label_binarize(self.data.training().target_data(), classes)
+
+        for _ in range(epoch):
+            sess.run(train_step, feed_dict={ph_input: self.data.training().input_data(), ph_target: train_one_hot})
+
+
+    def model_probability(self, data):  # probabilities are returned as a numpy.shape = (samples, classes)
+
+        sess = self.model["sess"]
+        ph_input = self.model["ph_input"]
+        ph_probability = self.model["ph_probability"]
+        probability = sess.run(ph_probability, feed_dict={ph_input : data.input_data()})
+        return {"probability": probability}
+
+
+# ===============================================================================
+# A tensorflow tf.contrib.learn DNN example
+# ===============================================================================
+
+
+class TF_DNN_Classifier(with_metaclass(ModelMetaClass, TensorFlowClassifier)):
+
+    def __init__(self, args, log):
+        super(TF_DNN_Classifier, self).__init__(args, log)
+
+        # define the model data view.
+        # Define the model variable types here. Documented in "OSMModelData.py".
+        self.arguments = { "DEPENDENT" : { "VARIABLE" : "IC50_ACTIVITY", "SHAPE" : [3], "TYPE": OSMModelData.CLASSES }
+                    , "INDEPENDENT" : [ { "VARIABLE" : "DRAGON", "SHAPE": [1552], "TYPE": OSMModelData.FLOAT64 } ] }
+
+    # These functions need to be re-defined in all classifier model classes.
+
+    def model_name(self):
+        return "TENSORFLOW tf.contrib.learn DNNClassifier"
+
+    def model_postfix(self):  # Must be unique for each model.
+        return "tfdnn"
+
+    def model_description(self):
+        return ("A TENSORFLOW tf.learn based Neural Network classifier.\n"
+                "See tf.learn documentation at: https://www.tensorflow.org/get_started/tflearn\n")
+
+    def model_define(self):
+        return self.model_define_directory(None)
+
+    def model_define_directory(self, directory):
+        # Specify that all features have real-value data
+        feature_columns = [tf.contrib.layers.real_valued_column("", dimension=1552)]
+        # Build 3 layer DNN.
+        model = tf.contrib.learn.DNNClassifier(feature_columns=feature_columns,
+                                               hidden_units=[50, 50, 10],
+                                               n_classes=3,
+                                               model_dir = directory)
+        return model
+
+    def model_prediction(self, data):
+        input_fn = lambda: self.input_data(data)
+        predict = self.model.predict(input_fn=input_fn)
+        predict_list = list(predict)
+        classes = self.model_enumerate_classes()
+        class_list = []
+        for predict in predict_list:
+            class_list.append(classes[predict])
+        return {"prediction": class_list, "actual": data.target_data()}
+
+    def epoch_read(self, epoch):
+        postfix_directory = os.path.join(self.args.workDirectory, self.args.classifyType)
+        postfix_directory += "/{0:0>8}".format(epoch)
+        self.log.info("TENSORFLOW - Loading Pre-Trained %s Directory: %s, epoch: %d"
+                      , self.model_name(), postfix_directory, epoch)
+
+        return self.model_define_directory(postfix_directory)
+
+    def epoch_write(self, epoch):
+        postfix_directory = os.path.join(self.args.workDirectory, self.args.classifyType)
+        postfix_directory_epoch = postfix_directory + "/{0:0>8}".format(epoch)
+        self.log.info("TENSORFLOW - Saving Trained %s Model in Directory: %s, epoch %d"
+                      , self.model_name(), postfix_directory_epoch, epoch)
+        if not os.path.isdir(postfix_directory_epoch):
+            self.model.export(export_dir=postfix_directory)
+        else:
+            self.log.warning("The model <postfix>/epoch directory: %s already exists. Cannot save model.",
+                             postfix_directory_epoch)
+
+    def train_epoch(self, epoch):
+
+        input_fn = lambda: self.input_data(self.data.training())
+        self.model.fit(input_fn=input_fn, steps=epoch)
+
+
+    def model_probability(self, data):  # probabilities are returned as a numpy.shape = (samples, classes)
+        input_fn = lambda: self.input_data(data)
+        prob =self.model.predict_proba(input_fn=input_fn)
+        prob_list = list(prob)
+        return {"probability": prob_list}
+
+    def input_data(self, data):
+        classes = self.model_enumerate_classes()
+        class_list =  data.target_data()
+        class_idx_list = []
+        for a_class in class_list:
+            class_idx_list.append(classes.index(a_class))
+        input_y_tensor = tf.constant(class_idx_list)
+        input_x_tensor = tf.constant(data.input_data())
+        return input_x_tensor, input_y_tensor
 

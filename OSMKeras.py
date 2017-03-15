@@ -32,6 +32,7 @@ import numpy as np
 from keras.models import Sequential
 from keras.layers import Dense
 from keras.layers import Dropout
+from keras.layers import normalization, BatchNormalization
 from keras.regularizers import l2, activity_l2
 from keras.models import load_model
 from keras.constraints import maxnorm
@@ -202,6 +203,56 @@ class ModifiedSequential(with_metaclass(ModelMetaClass, KerasClassifier)):
         predictions_array = predictions.flatten()
         return {"prediction": predictions_array, "actual": data.target_data()}
 
+
+    def train_epoch(self, epoch):
+        self.model.fit(self.data.training().input_data(), self.data.training().target_data()
+                       , nb_epoch=epoch, batch_size=100, verbose=1)
+
+
+# ===============================================================================
+# Modified sequential class is a multi layer neural network.
+# ===============================================================================
+
+class DModifiedSequential(with_metaclass(ModelMetaClass, KerasClassifier)):
+    def __init__(self, args, log):
+        super(DModifiedSequential, self).__init__(args, log)
+
+        self.default_epochs = 200
+
+        # Define the model data view.
+        # Define the model variable types here. Documented in "OSMModelData.py".
+        self.arguments = {"DEPENDENT": {"VARIABLE": "pIC50", "SHAPE": [1], "TYPE": OSMModelData.FLOAT64}
+            , "INDEPENDENT": [{"VARIABLE": "DRAGON", "SHAPE": [1552], "TYPE": OSMModelData.FLOAT64}]}
+
+    # These functions need to be re-defined in all classifier model classes.
+
+    def model_name(self):
+        return "Dragon Modified Sequential"
+
+    def model_postfix(self):  # Must be unique for each model.
+        return "dmod"
+
+    def model_description(self):
+        return ("A KERAS (TensorFlow) multi-layer Neural Network classification model. \n"
+                "This classifier analyzes the Dragon data")
+
+    def model_define(self):  # Defines the modified sequential class with regularizers defined.
+
+        model = Sequential()
+
+        model.add(Dense(1552, input_dim=1552, init="uniform", activation="relu", W_constraint=maxnorm(3)))
+        model.add(Dropout(0.2, input_shape=(1552,)))
+        model.add(BatchNormalization())
+
+        model.add(Dense(1, init="normal"))
+        model.compile(loss="mean_squared_error", optimizer="Adam", metrics=["accuracy"])
+
+        return model
+
+    def model_prediction(self, data):
+        predictions = self.model.predict(data.input_data(), verbose=0)
+        predictions_array = predictions.flatten()
+        return {"prediction": predictions_array, "actual": data.target_data()}
 
     def train_epoch(self, epoch):
         self.model.fit(self.data.training().input_data(), self.data.training().target_data()

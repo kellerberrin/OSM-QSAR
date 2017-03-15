@@ -28,6 +28,8 @@ import sys
 import numpy as np
 import pandas as pd
 
+from sklearn.decomposition import PCA, KernelPCA
+
 from rdkit import Chem
 from rdkit.Chem import AllChem
 
@@ -49,6 +51,8 @@ class OSMGenerateData(object):
         self.args = args
         self.data = self.read_csv(self.args.dataFilename)
 
+        self.read_dragon(self.args.dragonFilename)
+
         self.check_smiles(self.data)
 
         self.generate_fields()
@@ -60,15 +64,24 @@ class OSMGenerateData(object):
 
     def display_variables(self):
             for column in self.data.columns:
-                self.log.info("Variable: %s", column)
+                msg = "Variable: {:20s} Dimension: {:4d}".format(column, self.get_dimension(column))
+                self.log.info(msg)
 
     def get_data(self):
         return self.data
 
+    def get_dimension(self, column_name):
+        if self.data[column_name].shape[0] == 0:
+            self.log.error("Unexpected Error column %s contains no rows", column_name)
+            sys.exit()
+        if isinstance(self.data[column_name][0], np.ndarray):
+            return self.data[column_name][0].shape[0]
+        else:
+            return 1
 
     def generate_fields(self):
 
-        self.log.info("Calculating pharmacophore fields, may take a few minutes....")
+        self.log.info("Calculating QSAR fields, may take a few moments....")
 
         # Add the finger print columns
         morgan_1024 = lambda x: AllChem.GetMorganFingerprintAsBitVect(x, 4, nBits=1024)
@@ -86,6 +99,50 @@ class OSMGenerateData(object):
         self.add_bitvect_fingerprint(self.data, morgan_2048_5, "MORGAN2048_5")
         self.add_bitvect_fingerprint(self.data, topological_2048, "TOPOLOGICAL2048")
         self.add_bitvect_fingerprint(self.data, macc, "MACCFP")
+
+
+    # Read the Dragon data as a pandas object with 2 fields, [SMILE, np.ndarray] and join (merge)
+    # on "SMILE" with the OSMData data.
+    def read_dragon(self, file_name):
+
+        self.log.info("Loading EDragon QSAR file: %s ...", file_name)
+
+        try:
+
+            data_frame = pd.read_csv(file_name, low_memory=False)
+            new_frame = pd.DataFrame(data_frame, columns=["SMILE"])
+            data_frame = data_frame.drop("SMILE", 1)
+            narray = data_frame.as_matrix(columns=None)
+            narray = narray.astype(np.float64)
+            narray_list = [ x for x in narray]
+            new_frame["DRAGON"] = pd.Series(narray_list, index=data_frame.index)
+#            print("Shape before", self.data.shape)
+            self.data = pd.merge(self.data, new_frame, how="inner", on=["SMILE"])
+            self.data = self.data.drop_duplicates(subset=["SMILE"], keep="first")
+#            print("Shape after", self.data.shape)
+
+            pca = PCA(n_components=10)
+            pca.fit(narray_list)
+            pca_array = pca.transform(narray_list)
+            pca_list = [ x for x in pca_array]
+#            self.data["DRAGON_PCA"] = pd.Series(pca_list, index=data_frame.index)
+
+            kpca = KernelPCA(n_components=10, kernel="rbf")
+            kpca.fit(narray_list)
+            kpca_array = kpca.transform(narray_list)
+            kpca_list = [ x for x in kpca_array]
+#            self.data["DRAGON_KPCA"] = pd.Series(kpca_list, index=data_frame.index)
+
+#            print("PCA", pca.explained_variance_ratio_, "shape", pca_array.shape)
+#            dragon = self.data["DRAGON"]
+#            dragon_list = [x[0] for x in dragon]
+#            print("SMILE", self.data["SMILE"][705], dragon_list[705], self.data["pIC50"][705])
+
+        except IOError:
+            self.log.error('Problem reading EDragon file %s, Check "--data", ""--dir" and --help" flags.', file_name)
+            sys.exit()
+
+        self.log.info("Read %d records from file %s", data_frame.shape[0], file_name)
 
 
     # Read CSV File into a pandas data frame

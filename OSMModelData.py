@@ -86,6 +86,7 @@ class OSMModelData(object):
         self.args = args
         self.model_args = model.model_arguments()
         self.model_df = copy.deepcopy(data.get_data())    # The data object may used elsewhere, leave it unmolested.
+        self.dragon_headers = data.get_dragon_headers()
         self.train, self.test = self.setup_model_data()
 
     def training(self):  # Access training data (returns the adapter class).
@@ -93,6 +94,9 @@ class OSMModelData(object):
 
     def testing(self):   # Access the test (target) data (returns the adapter class).
         return AccessData(self, self.test)
+
+    def all(self):   # Access the test (target) data (returns the adapter class).
+        return AccessData(self, self.model_df)
 
     @staticmethod
     def enumerate_classes(class_column):
@@ -118,9 +122,15 @@ class OSMModelData(object):
         self.check_arg_shape_type(self.model_args["DEPENDENT"])  # raises an exception if any errors.
 
         if self.args.indepList != "default":
-            if len(self.args.indepList) != len(self.model_args["INDEPENDENT"]):
-                self.log.error("Model requires %d independent variables;  %s specified", ",".join(self.args.indepVar))
-                sys.exit()
+
+            if self.model_args["INDEPENDENT"][0]["SHAPE"] is None:
+
+                if not self.model_args["INDEPENDENT"][0]["SHAPE"][0] is None:
+
+                    if len(self.args.indepList) != len(self.model_args["INDEPENDENT"] ):
+                        self.log.error("Model requires %d independent variables;  %s specified",
+                                       len(self.model_args["INDEPENDENT"]), ",".join(self.args.indepList))
+                    sys.exit()
 
             for idx in range(len(self.model_args["INDEPENDENT"])):
                 self.model_args["INDEPENDENT"][idx]["VARIABLE"] = self.args.indepList[idx]
@@ -285,10 +295,16 @@ class AccessData(object): # The adapter class actually used to return data to th
             return matrix # numpy matrix.
         elif len(self.model_args["INDEPENDENT"]) > 1:
             matrix_list = []
-            for var in self.data["INDEPENDENT"]:
-                matrix = self.data[var["VARIABLE"].tolist()]
+            for var in self.model_args["INDEPENDENT"]:
+                matrix = self.data[var["VARIABLE"]].tolist()
                 matrix_list.append(matrix)
-            return matrix_list   # return as a list of numpy matrices
+            cat_numpy = matrix_list[0]
+            print("catnumpy_shape[0]", cat_numpy[0].shape)
+            for idx in range(len(matrix_list)-1):
+                print("catnumpy:", idx, matrix_list[idx+1][0].shape)
+                cat_numpy = np.concatenate((cat_numpy, matrix_list[idx+1]), axis=1)
+            print("net catnumpy_shape", cat_numpy.shape)
+            return cat_numpy   # return as a concatonated numpy
         else: # zero independent arguments - error
             self.log.error("No independent variables defined for model.")
             sys.exit()

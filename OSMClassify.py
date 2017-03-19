@@ -110,7 +110,9 @@ class OSMClassification(OSMBaseModel):
         predict_one_hot = label_binarize(predict_text, classes)
 
         if len(classes) == 2 and actual_one_hot.shape[1] == 1:
-            auc_probs = probabilities[:,1]
+            auc_probs = [ x[1] for x in probabilities]
+#            print("auc_prob", auc_probs)
+#            auc_probs = probabilities[:,1]
         else:
             auc_probs = probabilities
 

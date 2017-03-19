@@ -50,8 +50,7 @@ class OSMGenerateData(object):
         self.log = log
         self.args = args
         self.data = self.read_csv(self.args.dataFilename)
-
-        self.read_dragon(self.args.dragonFilename)
+        self.dragon = self.read_dragon(self.args.dragonFilename)
 
         self.check_smiles(self.data)
 
@@ -66,6 +65,9 @@ class OSMGenerateData(object):
             for column in self.data.columns:
                 msg = "Variable: {:20s} Dimension: {:4d}".format(column, self.get_dimension(column))
                 self.log.info(msg)
+
+    def get_dragon_headers(self):
+        return list(self.dragon.columns.values)
 
     def get_data(self):
         return self.data
@@ -109,9 +111,9 @@ class OSMGenerateData(object):
 
         try:
 
-            data_frame = pd.read_csv(file_name, low_memory=False)
-            new_frame = pd.DataFrame(data_frame, columns=["SMILE"])
-            data_frame = data_frame.drop("SMILE", 1)
+            dragon_data_frame = pd.read_csv(file_name, low_memory=False)
+            new_frame = pd.DataFrame(dragon_data_frame, columns=["SMILE"])
+            data_frame = dragon_data_frame.drop("SMILE", 1)
             narray = data_frame.as_matrix(columns=None)
             narray = narray.astype(np.float64)
             narray_list = [ x for x in narray]
@@ -144,6 +146,7 @@ class OSMGenerateData(object):
 
         self.log.info("Read %d records from file %s", data_frame.shape[0], file_name)
 
+        return dragon_data_frame
 
     # Read CSV File into a pandas data frame
     def read_csv(self, file_name):

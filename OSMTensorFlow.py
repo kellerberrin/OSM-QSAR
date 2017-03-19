@@ -116,7 +116,7 @@ class TensorFlowSimpleClassifier(with_metaclass(ModelMetaClass, TensorFlowClassi
 
         # define the model data view.
         # Define the model variable types here. Documented in "OSMModelData.py".
-        self.arguments = { "DEPENDENT" : { "VARIABLE" : "IC50_ACTIVITY", "SHAPE" : [3], "TYPE": OSMModelData.CLASSES }
+        self.arguments = { "DEPENDENT" : { "VARIABLE" : "ION_ACTIVITY", "SHAPE" : [3], "TYPE": OSMModelData.CLASSES }
                     , "INDEPENDENT" : [ { "VARIABLE" : "MORGAN2048_4", "SHAPE": [2048], "TYPE": OSMModelData.FLOAT64 } ] }
 
     # These functions need to be re-defined in all classifier model classes.
@@ -217,7 +217,7 @@ class DTensorFlowSimpleClassifier(with_metaclass(ModelMetaClass, TensorFlowClass
 
         # define the model data view.
         # Define the model variable types here. Documented in "OSMModelData.py".
-        self.arguments = { "DEPENDENT" : { "VARIABLE" : "IC50_ACTIVITY", "SHAPE" : [3], "TYPE": OSMModelData.CLASSES }
+        self.arguments = { "DEPENDENT" : { "VARIABLE" : "ION_ACTIVITY", "SHAPE" : [3], "TYPE": OSMModelData.CLASSES }
                     , "INDEPENDENT" : [ { "VARIABLE" : "DRAGON", "SHAPE": [1552], "TYPE": OSMModelData.FLOAT64 } ] }
 
     # These functions need to be re-defined in all classifier model classes.
@@ -317,8 +317,8 @@ class TF_DNN_Classifier(with_metaclass(ModelMetaClass, TensorFlowClassifier)):
 
         # define the model data view.
         # Define the model variable types here. Documented in "OSMModelData.py".
-        self.arguments = { "DEPENDENT" : { "VARIABLE" : "IC50_ACTIVITY", "SHAPE" : [3], "TYPE": OSMModelData.CLASSES }
-                    , "INDEPENDENT" : [ { "VARIABLE" : "DRAGON", "SHAPE": [1552], "TYPE": OSMModelData.FLOAT64 } ] }
+        self.arguments = { "DEPENDENT" : { "VARIABLE" : "ION_ACTIVITY", "SHAPE" : [2], "TYPE": OSMModelData.CLASSES }
+                    , "INDEPENDENT" : [ { "VARIABLE" : "MORGAN2048_4", "SHAPE": [1552], "TYPE": OSMModelData.FLOAT64 } ] }
 
     # These functions need to be re-defined in all classifier model classes.
 
@@ -338,6 +338,106 @@ class TF_DNN_Classifier(with_metaclass(ModelMetaClass, TensorFlowClassifier)):
     def model_define_directory(self, directory):
         # Specify that all features have real-value data
         feature_columns = [tf.contrib.layers.real_valued_column("", dimension=1552)]
+        # Build 3 layer DNN.
+        model = tf.contrib.learn.DNNClassifier(feature_columns=feature_columns,
+                                               hidden_units=[50, 50, 10],
+                                               n_classes=2,
+                                               model_dir = directory)
+        return model
+
+    def model_prediction(self, data):
+        input_fn = lambda: self.input_data(data)
+        predict = self.model.predict(input_fn=input_fn)
+        predict_list = list(predict)
+        classes = self.model_enumerate_classes()
+        class_list = []
+        for predict in predict_list:
+            class_list.append(classes[predict])
+        return {"prediction": class_list, "actual": data.target_data()}
+
+    def epoch_read(self, epoch):
+        postfix_directory = os.path.join(self.args.workDirectory, self.args.classifyType)
+        postfix_directory += "/{0:0>8}".format(epoch)
+        self.log.info("TENSORFLOW - Loading Pre-Trained %s Directory: %s, epoch: %d"
+                      , self.model_name(), postfix_directory, epoch)
+
+        return self.model_define_directory(postfix_directory)
+
+    def epoch_write(self, epoch):
+        postfix_directory = os.path.join(self.args.workDirectory, self.args.classifyType)
+        postfix_directory_epoch = postfix_directory + "/{0:0>8}".format(epoch)
+        self.log.info("TENSORFLOW - Saving Trained %s Model in Directory: %s, epoch %d"
+                      , self.model_name(), postfix_directory_epoch, epoch)
+        if not os.path.isdir(postfix_directory_epoch):
+            self.model.export(export_dir=postfix_directory)
+        else:
+            self.log.warning("The model <postfix>/epoch directory: %s already exists. Cannot save model.",
+                             postfix_directory_epoch)
+
+    def train_epoch(self, epoch):
+
+        input_fn = lambda: self.input_data(self.data.training())
+        self.model.fit(input_fn=input_fn, steps=epoch)
+
+
+    def model_probability(self, data):  # probabilities are returned as a numpy.shape = (samples, classes)
+        input_fn = lambda: self.input_data(data)
+        prob =self.model.predict_proba(input_fn=input_fn)
+        list_prob = list(prob)
+        prob_list = []
+        for prob in list_prob:
+          vec_list = []
+          for p in prob:
+            vec_list.append(p)
+          prob_list.append(vec_list)
+#        print("prob",prob_list)
+        return {"probability": prob_list}
+
+    def input_data(self, data):
+        classes = self.model_enumerate_classes()
+        class_list =  data.target_data()
+        class_idx_list = []
+        for a_class in class_list:
+            class_idx_list.append(classes.index(a_class))
+        input_y_tensor = tf.constant(class_idx_list)
+        input_x_tensor = tf.constant(data.input_data())
+        return input_x_tensor, input_y_tensor
+
+
+# ===============================================================================
+# A tensorflow tf.contrib.learn DNN example
+# ===============================================================================
+
+
+class DNN_MV_Classifier(with_metaclass(ModelMetaClass, TensorFlowClassifier)):
+
+    def __init__(self, args, log):
+        super(DNN_MV_Classifier, self).__init__(args, log)
+
+        # define the model data view.
+        # Define the model variable types here. Documented in "OSMModelData.py".
+        self.arguments = { "DEPENDENT" : { "VARIABLE" : "ION_ACTIVITY", "SHAPE" : [3], "TYPE": OSMModelData.CLASSES }
+                    , "INDEPENDENT" : [ { "VARIABLE" : "DRAGON", "SHAPE": [1552], "TYPE": OSMModelData.FLOAT64 }
+                                    , { "VARIABLE" : "MORGAN2048_4", "SHAPE": [2048], "TYPE": OSMModelData.FLOAT64 } ] }
+
+    # These functions need to be re-defined in all classifier model classes.
+
+    def model_name(self):
+        return "Multi vector TENSORFLOW tf.contrib.learn DNNClassifier"
+
+    def model_postfix(self):  # Must be unique for each model.
+        return "dnnmv"
+
+    def model_description(self):
+        return ("A Multi Vector Neural Network classifier.\n"
+                "Joins large input vectors, typically [Dragon, Fingerprint1, ....]\n")
+
+    def model_define(self):
+        return self.model_define_directory(None)
+
+    def model_define_directory(self, directory):
+        # Specify that all features have real-value data
+        feature_columns = [tf.contrib.layers.real_valued_column("", dimension=(1552+2048))]
         # Build 3 layer DNN.
         model = tf.contrib.learn.DNNClassifier(feature_columns=feature_columns,
                                                hidden_units=[50, 50, 10],
@@ -395,4 +495,5 @@ class TF_DNN_Classifier(with_metaclass(ModelMetaClass, TensorFlowClassifier)):
         input_y_tensor = tf.constant(class_idx_list)
         input_x_tensor = tf.constant(data.input_data())
         return input_x_tensor, input_y_tensor
+
 

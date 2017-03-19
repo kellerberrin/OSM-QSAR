@@ -37,23 +37,25 @@ from keras.regularizers import l2, activity_l2
 from keras.models import load_model
 from keras.constraints import maxnorm
 from keras.optimizers import SGD
-
+from keras.utils import np_utils
+import keras.backend as backend
 
 from OSMBase import ModelMetaClass  # The virtual model class.
 from OSMRegression import OSMRegression  # Display and save regression results.
+from OSMClassify import OSMClassification
 from OSMGraphics import OSMSimilarityMap
 from OSMModelData import OSMModelData
 from OSMIterative import OSMIterative
-
+from OSMGraphics import OSMDragonMap
 
 # ===============================================================================
 # Base class for the Keras neural network classifiers.
 # ===============================================================================
 
-class KerasClassifier(OSMRegression):
+class KerasRegression(OSMRegression):
 
     def __init__(self, args, log):
-        super(KerasClassifier, self).__init__(args, log)
+        super(KerasRegression, self).__init__(args, log)
 
         self.default_epochs = 1000
 
@@ -94,7 +96,7 @@ class KerasClassifier(OSMRegression):
             shape.append(int_list)
             fp_floats = np.array(shape, dtype=float)
             prediction = predict_func(fp_floats, verbose=0)[0][0]  # returns a prediction (not probability)
-            return prediction * -1  # Flip the sign, -ve is good.
+            return prediction
 
         func = lambda x: keras_probability(x, self.model.predict)
 
@@ -107,7 +109,7 @@ class KerasClassifier(OSMRegression):
 # The sequential neural net class developed by Vito Spadavecchio.
 # ===============================================================================
 
-class SequentialModel(with_metaclass(ModelMetaClass, KerasClassifier)):
+class SequentialModel(with_metaclass(ModelMetaClass, KerasRegression)):
 
     def __init__(self, args, log):
         super(SequentialModel, self).__init__(args, log)
@@ -154,7 +156,7 @@ class SequentialModel(with_metaclass(ModelMetaClass, KerasClassifier)):
 # Modified sequential class is a multi layer neural network.
 # ===============================================================================
 
-class ModifiedSequential(with_metaclass(ModelMetaClass, KerasClassifier)):
+class ModifiedSequential(with_metaclass(ModelMetaClass, KerasRegression)):
 
 
     def __init__(self, args, log):
@@ -213,48 +215,291 @@ class ModifiedSequential(with_metaclass(ModelMetaClass, KerasClassifier)):
 # Modified sequential class is a multi layer neural network.
 # ===============================================================================
 
-class DModifiedSequential(with_metaclass(ModelMetaClass, KerasClassifier)):
-    def __init__(self, args, log):
-        super(DModifiedSequential, self).__init__(args, log)
+class KerasClassifier(OSMClassification):
 
-        self.default_epochs = 200
+    def __init__(self, args, log):
+        super(KerasClassifier, self).__init__(args, log)
+
+        self.default_epochs = 1000
+
+        self.iterative = OSMIterative(self)
+
+    def model_write(self):
+        self.iterative.write()
+
+    def model_read(self):
+        return self.iterative.read()
+
+    def model_train(self):
+        self.iterative.train(self.default_epochs)
+
+    def epoch_write(self, epoch):
+        file_name = self.args.saveFilename + "_" + "{}".format(epoch) + ".krs"
+        self.log.info("KERAS - Saving Trained %s Model in File: %s", self.model_name(), file_name)
+        self.model.save(file_name)
+
+    def epoch_read(self, epoch):
+        file_name = self.args.loadFilename + "_" + "{}".format(epoch) + ".krs"
+        self.log.info("KERAS - Loading Trained %s Model in File: %s", self.model_name(), file_name)
+        model = load_model(file_name)
+        return model
+
+    def model_epochs(self):
+        return self.iterative.trained_epochs()
+
+
+    def model_graphics(self):
+        self.similarity_graphics()
+        self.dragon_graphics()
+
+    def dragon_graphics(self):
+
+        func = lambda x: self.model.predict_probapredict_func(x, verbose=0)[0][0]
+
+        if self.args.checkPoint < 0 or self.args.extendFlag:
+            OSMDragonMap(self, self.data.testing(), func).maps(self.args.testDirectory)
+            if self.args.extendFlag:
+                OSMDragonMap(self, self.data.training(), func).maps(self.args.trainDirectory)
+
+    def similarity_graphics(self):
+
+        def keras_probability(fp, predict_func):
+            int_list = []
+
+            for arr in fp:
+                int_list.append(arr)
+
+            shape = []
+            shape.append(int_list)
+            fp_floats = np.array(shape, dtype=float)
+            prediction = predict_func(fp_floats, verbose=0)[0][0]  # returns a probability
+            return prediction
+
+        func = lambda x: keras_probability(x, self.model.predict_proba)
+
+        if self.args.checkPoint < 0 or self.args.extendFlag:
+            OSMSimilarityMap(self, self.data.testing(), func).maps(self.args.testDirectory)
+            if self.args.extendFlag:
+                OSMSimilarityMap(self, self.data.training(), func).maps(self.args.trainDirectory)
+
+
+# ===============================================================================
+# Keras Pattern Classifier
+# ===============================================================================
+
+
+class KlassSequential(with_metaclass(ModelMetaClass, KerasClassifier)):
+    def __init__(self, args, log):
+        super(KlassSequential, self).__init__(args, log)
 
         # Define the model data view.
         # Define the model variable types here. Documented in "OSMModelData.py".
-        self.arguments = {"DEPENDENT": {"VARIABLE": "pIC50", "SHAPE": [1], "TYPE": OSMModelData.FLOAT64}
-            , "INDEPENDENT": [{"VARIABLE": "DRAGON", "SHAPE": [1552], "TYPE": OSMModelData.FLOAT64}]}
+
+    # These functions need to be re-defined in all classifier model classes.
+
+
+    def model_prediction(self, data):
+        predictions = self.model.predict_classes(data.input_data(), verbose=0)
+        classes = self.model_enumerate_classes()
+        class_list = []
+        for predict in predictions:
+            class_list.append(classes[predict])
+        return {"prediction": class_list, "actual": data.target_data()}
+
+    def model_probability(self, data):  # probabilities are returned as a numpy.shape = (samples, classes)
+        prob =self.model.predict_proba(data.input_data())
+        prob_list = list(prob)
+        return {"probability": prob_list}
+
+    def train_epoch(self, epoch):
+
+        classes = self.model_enumerate_classes()
+        class_list = self.data.training().target_data()
+        index_list = []
+        for a_class in class_list:
+            index_list.append(classes.index(a_class))
+        binary_labels = np_utils.to_categorical(index_list)
+
+        self.model.fit(self.data.training().input_data(), binary_labels
+                       , nb_epoch=epoch, batch_size=100, verbose=1)
+
+# ===============================================================================
+# Keras Pattern Classifier, fits ION ACTIVITY to MORGAN2048_4
+# ===============================================================================
+
+class KlassIonMorgan(with_metaclass(ModelMetaClass, KlassSequential)):
+    def __init__(self, args, log):
+        super(KlassIonMorgan, self).__init__(args, log)
+
+        # Define the model data view.
+        # Define the model variable types here. Documented in "OSMModelData.py".
+        self.arguments = {"DEPENDENT": {"VARIABLE": "ION_ACTIVITY", "SHAPE": [3], "TYPE": OSMModelData.CLASSES}
+            , "INDEPENDENT": [{"VARIABLE": "MORGAN2048_4", "SHAPE": [2048], "TYPE": OSMModelData.FLOAT64}]}
 
     # These functions need to be re-defined in all classifier model classes.
 
     def model_name(self):
-        return "Dragon Modified Sequential"
+        return "MORGAN > ION_ACTIVITY Classifier"
 
     def model_postfix(self):  # Must be unique for each model.
-        return "dmod"
+        return "ion_m"
 
     def model_description(self):
-        return ("A KERAS (TensorFlow) multi-layer Neural Network classification model. \n"
-                "This classifier analyzes the Dragon data")
+        return ("A KERAS (TensorFlow) multi-layer Neural Network class classification model. \n"
+                "This classifier analyzes the MORGAN2048, MORGAN2048_4, TOPOLOGICAL2048 against ION_ACTIVITY")
 
     def model_define(self):  # Defines the modified sequential class with regularizers defined.
 
         model = Sequential()
 
-        model.add(Dense(1552, input_dim=1552, init="uniform", activation="relu", W_constraint=maxnorm(3)))
-        model.add(Dropout(0.2, input_shape=(1552,)))
+        model.add(Dense(2048, input_dim=2048, init="uniform", activation="relu", W_constraint=maxnorm(3)))
+        model.add(Dropout(0.2))
         model.add(BatchNormalization())
-
-        model.add(Dense(1, init="normal"))
-        model.compile(loss="mean_squared_error", optimizer="Adam", metrics=["accuracy"])
+        model.add(Dense(32, init="uniform", activation="relu", W_constraint=maxnorm(3)))
+        model.add(Dropout(0.2))
+        model.add(BatchNormalization())
+        model.add(Dense(8, init="uniform", activation="relu", W_constraint=maxnorm(3)))
+        model.add(Dropout(0.3))
+        model.add(BatchNormalization())
+        model.add(Dense(3, activation = "softmax", init="normal"))
+        model.compile(loss="categorical_crossentropy", optimizer="Adam", metrics=["accuracy"])
 
         return model
 
-    def model_prediction(self, data):
-        predictions = self.model.predict(data.input_data(), verbose=0)
-        predictions_array = predictions.flatten()
-        return {"prediction": predictions_array, "actual": data.target_data()}
 
-    def train_epoch(self, epoch):
-        self.model.fit(self.data.training().input_data(), self.data.training().target_data()
-                       , nb_epoch=epoch, batch_size=100, verbose=1)
+# ===============================================================================
+# Keras Pattern Classifier, fits ION ACTIVITY to the DRAGON data.
+# ===============================================================================
+
+class KlassIonDragon(with_metaclass(ModelMetaClass, KlassSequential)):
+    def __init__(self, args, log):
+        super(KlassIonDragon, self).__init__(args, log)
+
+        # Define the model data view.
+        # Define the model variable types here. Documented in "OSMModelData.py".
+        self.arguments = {"DEPENDENT": {"VARIABLE": "ION_ACTIVITY", "SHAPE": [3], "TYPE": OSMModelData.CLASSES}
+            , "INDEPENDENT": [{"VARIABLE": "DRAGON", "SHAPE": [1552], "TYPE": OSMModelData.FLOAT64}]}
+
+    # These functions need to be re-defined in all classifier model classes.
+
+    def model_name(self):
+        return "DRAGON > ION_ACTIVITY Classifier"
+
+    def model_postfix(self):  # Must be unique for each model.
+        return "ion_d"
+
+    def model_description(self):
+        return ("A KERAS (TensorFlow) multi-layer Neural Network class classification model. \n"
+                "This classifier analyzes the DRAGON data against ION_ACTIVITY")
+
+    def model_define(self):  # Defines the modified sequential class with regularizers defined.
+
+        model = Sequential()
+
+        model.add(Dense(2048, input_dim=1552, init="uniform", activation="relu", W_constraint=maxnorm(3)))
+        model.add(Dropout(0.2))
+        model.add(BatchNormalization())
+        model.add(Dense(64, init="uniform", activation="relu", W_constraint=maxnorm(3)))
+        model.add(Dropout(0.3))
+        model.add(BatchNormalization())
+        model.add(Dense(64, init="uniform", activation="relu", W_constraint=maxnorm(3)))
+        model.add(Dropout(0.3))
+        model.add(BatchNormalization())
+        model.add(Dense(16, init="uniform", activation="relu", W_constraint=maxnorm(3)))
+        model.add(Dropout(0.3))
+        model.add(BatchNormalization())
+        model.add(Dense(3, activation = "softmax", init="normal"))
+        model.compile(loss="categorical_crossentropy", optimizer="Adam", metrics=["accuracy"])
+
+        return model
+
+# ===============================================================================
+# Keras Pattern Classifier, fits Binary Classes to MORGAN2048_4
+# ===============================================================================
+
+class KlassBinaryMorgan(with_metaclass(ModelMetaClass, KlassSequential)):
+    def __init__(self, args, log):
+        super(KlassBinaryMorgan, self).__init__(args, log)
+
+        # Define the model data view.
+        # Define the model variable types here. Documented in "OSMModelData.py".
+        self.arguments = {"DEPENDENT": {"VARIABLE": "EC50_500", "SHAPE": [2], "TYPE": OSMModelData.CLASSES}
+            , "INDEPENDENT": [{"VARIABLE": "MORGAN2048_4", "SHAPE": [2048], "TYPE": OSMModelData.FLOAT64}]}
+
+    # These functions need to be re-defined in all classifier model classes.
+
+    def model_name(self):
+        return "MORGAN > EC50_500 (Any Binary Class) Classifier"
+
+    def model_postfix(self):  # Must be unique for each model.
+        return "bin_m"
+
+    def model_description(self):
+        return ("A KERAS (TensorFlow) multi-layer Neural Network class classification model. \n"
+                "This classifier analyzes MORGAN2048, MORGAN2048_4, TOPOLOGICAL2048 against any binary class")
+
+    def model_define(self):  # Defines the modified sequential class with regularizers defined.
+
+        model = Sequential()
+
+        model.add(Dense(2048, input_dim=2048, init="uniform", activation="relu", W_constraint=maxnorm(3)))
+        model.add(Dropout(0.2))
+        model.add(BatchNormalization())
+        model.add(Dense(32, init="uniform", activation="relu", W_constraint=maxnorm(3)))
+        model.add(Dropout(0.2))
+        model.add(BatchNormalization())
+        model.add(Dense(8, init="uniform", activation="relu", W_constraint=maxnorm(3)))
+        model.add(Dropout(0.3))
+        model.add(BatchNormalization())
+        model.add(Dense(2, activation = "softmax", init="normal"))
+        model.compile(loss="categorical_crossentropy", optimizer="Adam", metrics=["accuracy"])
+
+        return model
+
+
+# ===============================================================================
+# Keras Pattern Classifier, fits Binary classes to the DRAGON data.
+# ===============================================================================
+
+class KlassBinaryDragon(with_metaclass(ModelMetaClass, KlassSequential)):
+    def __init__(self, args, log):
+        super(KlassBinaryDragon, self).__init__(args, log)
+
+        # Define the model data view.
+        # Define the model variable types here. Documented in "OSMModelData.py".
+        self.arguments = {"DEPENDENT": {"VARIABLE": "EC50_500", "SHAPE": [2], "TYPE": OSMModelData.CLASSES}
+            , "INDEPENDENT": [{"VARIABLE": "DRAGON", "SHAPE": [1552], "TYPE": OSMModelData.FLOAT64}]}
+
+    # These functions need to be re-defined in all classifier model classes.
+
+    def model_name(self):
+        return "DRAGON > EC50_500 (Any Binary Class) Classifier"
+
+    def model_postfix(self):  # Must be unique for each model.
+        return "bin_d"
+
+    def model_description(self):
+        return ("A KERAS (TensorFlow) multi-layer Neural Network class classification model. \n"
+                "This classifier analyzes the DRAGON data against any binary class")
+
+    def model_define(self):  # Defines the modified sequential class with regularizers defined.
+
+        model = Sequential()
+
+        model.add(Dense(2048, input_dim=1552, init="uniform", activation="relu", W_constraint=maxnorm(3)))
+        model.add(Dropout(0.2))
+        model.add(BatchNormalization())
+        model.add(Dense(64, init="uniform", activation="relu", W_constraint=maxnorm(3)))
+        model.add(Dropout(0.3))
+        model.add(BatchNormalization())
+        model.add(Dense(64, init="uniform", activation="relu", W_constraint=maxnorm(3)))
+        model.add(Dropout(0.3))
+        model.add(BatchNormalization())
+        model.add(Dense(16, init="uniform", activation="relu", W_constraint=maxnorm(3)))
+        model.add(Dropout(0.3))
+        model.add(BatchNormalization())
+        model.add(Dense(2, activation = "softmax", init="normal"))
+        model.compile(loss="categorical_crossentropy", optimizer="Adam", metrics=["accuracy"])
+
+        return model
 

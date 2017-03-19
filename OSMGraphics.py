@@ -27,6 +27,7 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 import os
 import sys
 
+import numpy as np
 from matplotlib import cm
 import matplotlib.pyplot as plt
 
@@ -105,3 +106,65 @@ class OSMSimilarityMap(object):
             progress_line = "Processing similarity diagram {}/{}\r".format(diagram_count, diagram_total)
             sys.stdout.write(progress_line)
             sys.stdout.flush()
+
+
+
+
+
+class OSMDragonMap(object):
+
+    def __init__(self, model, data, func):
+
+        self.args = model.args
+        self.log = model.log
+        self.model = model
+        self.data = data
+
+        self.morgan_func = self.check_args()
+        self.probability_func = func
+
+    def check_args(self):
+
+        model_args = self.model.model_arguments()
+        if len(model_args["INDEPENDENT"]) == 1:             # Only one fingerprint
+
+            var_name = model_args["INDEPENDENT"][0]["VARIABLE"]
+
+            if var_name == "DRAGON":
+
+                return None
+
+            else: return None
+
+    # Generate the png morgan diagram for test compounds.
+    def maps(self, directory):
+
+        if self.morgan_func is None or self.probability_func is None: return  # silent return.
+
+
+    def calc_derivative(self, data, func):
+
+        step_size = 0.01
+        vector_size = data.shape[1]
+        # Maybe use column median here.
+        central_value = np.identity(vector_size) * 0.5
+        derivatives = np.zeros(vector_size)
+
+        for idx in range(vector_size):
+            central_value[idx] += step_size
+            up_prob = func(central_value)
+            central_value[idx] -= 2 * step_size
+            dn_prob = func(central_value)
+            central_value[idx] += step_size
+            derivatives[idx] = (up_prob - dn_prob)
+
+        return derivatives
+
+
+    def calc_sensitivity(self, data, func):
+
+        sensitivity = data * self.calc_derivative(data, func)
+        return sensitivity
+
+
+

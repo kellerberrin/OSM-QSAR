@@ -171,9 +171,9 @@ class OSMSKLearnRFC(with_metaclass(ModelMetaClass, OSMSKLearnClassifier)):
 ######################################################################################################
 
 
-class OSMSKLearnNB(with_metaclass(ModelMetaClass, OSMSKLearnClassifier)):
+class OSMSKLearnNBC(with_metaclass(ModelMetaClass, OSMSKLearnClassifier)):
     def __init__(self, args, log):
-        super(OSMSKLearnNB, self).__init__(args, log)  # Edit this and change the class name.
+        super(OSMSKLearnNBC, self).__init__(args, log)  # Edit this and change the class name.
 
     # These functions need to be re-defined in all classifier model classes.
 

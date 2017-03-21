@@ -24,10 +24,14 @@
 # Python 2 and Python 3 compatibility imports.
 from __future__ import absolute_import, division, print_function, unicode_literals
 from six import with_metaclass
+import copy
 
 import sys
+import os
 
 import numpy as np
+
+from sklearn.utils import shuffle
 
 from keras.models import Sequential
 from keras.layers import Dense
@@ -36,8 +40,9 @@ from keras.layers import normalization, BatchNormalization
 from keras.regularizers import l2, activity_l2
 from keras.models import load_model
 from keras.constraints import maxnorm
-from keras.optimizers import SGD
+from keras.optimizers import SGD, Adam, Adagrad, Adadelta
 from keras.utils import np_utils
+from keras.utils.visualize_util import plot
 import keras.backend as backend
 
 from OSMBase import ModelMetaClass  # The virtual model class.
@@ -47,6 +52,8 @@ from OSMGraphics import OSMSimilarityMap
 from OSMModelData import OSMModelData
 from OSMIterative import OSMIterative
 from OSMGraphics import OSMDragonMap
+from OSMSKLearnClassify import OSMSKLearnLOGC, OSMSKLearnNBC  # All The SKLearn Classifiers for the meta NN
+
 
 # ===============================================================================
 # Base class for the Keras neural network classifiers.
@@ -306,6 +313,16 @@ class KlassSequential(with_metaclass(ModelMetaClass, KerasClassifier)):
             class_list.append(classes[predict])
         return {"prediction": class_list, "actual": data.target_data()}
 
+    def model_evaluate(self, data):
+        classes = self.model_enumerate_classes()
+        class_list = data.target_data()
+        index_list = []
+        for a_class in class_list:
+            index_list.append(classes.index(a_class))
+        binary_labels = np_utils.to_categorical(index_list)
+        score = self.model.evaluate(data.input_data(), binary_labels, verbose=0)
+        return score
+
     def model_probability(self, data):  # probabilities are returned as a numpy.shape = (samples, classes)
         prob =self.model.predict_proba(data.input_data())
         prob_list = list(prob)
@@ -313,15 +330,46 @@ class KlassSequential(with_metaclass(ModelMetaClass, KerasClassifier)):
 
     def train_epoch(self, epoch):
 
+        # shuffle the hold out validation data each epoch.
+        X, y = shuffle(self.data.training().input_data(), self.data.training().target_data())
+
         classes = self.model_enumerate_classes()
-        class_list = self.data.training().target_data()
+        class_list = y
         index_list = []
         for a_class in class_list:
             index_list.append(classes.index(a_class))
         binary_labels = np_utils.to_categorical(index_list)
 
-        self.model.fit(self.data.training().input_data(), binary_labels
-                       , nb_epoch=epoch, batch_size=100, verbose=1)
+        hist = self.model.fit(X, binary_labels, validation_split=self.args.holdOut
+                              , nb_epoch=epoch, batch_size=100, verbose=1)
+
+        self.train_history("model_aux.csv", hist.history, epoch)
+
+
+    def train_history(self, file_name, history, epoch):
+
+        model_file_path = os.path.join(self.args.postfixDirectory, file_name)
+        total_epochs = self.model_epochs()
+        begin_epoch = total_epochs - epoch + 1
+
+        try:
+
+            with open(model_file_path, 'a') as stats_file:
+
+                for idx in range(epoch):
+
+                    if self.args.holdOut > 0.0:
+                        line = "epoch, {}, loss, {}, validate_loss, {}\n".format(begin_epoch + idx
+                                                    , history["loss"][idx], history["val_loss"][idx])
+                    else:
+                        line = "epoch, {}, loss, {}\n".format(begin_epoch + idx, history["loss"][idx])
+
+                    stats_file.write(line)
+
+        except IOError:
+            self.log.error("Problem writing to model statistics file %s, check path and permissions", model_file_path)
+
+
 
 # ===============================================================================
 # Keras Pattern Classifier, fits ION ACTIVITY to MORGAN2048_4
@@ -346,11 +394,14 @@ class KlassIonMorgan(with_metaclass(ModelMetaClass, KlassSequential)):
 
     def model_description(self):
         return ("A KERAS (TensorFlow) multi-layer Neural Network class classification model. \n"
-                "This classifier analyzes the MORGAN2048, MORGAN2048_4, TOPOLOGICAL2048 against ION_ACTIVITY")
+                "This classifier analyzes the MORGAN2048_n, TOPOLOGICAL2048 against ION_ACTIVITY")
+
 
     def model_define(self):  # Defines the modified sequential class with regularizers defined.
 
         model = Sequential()
+
+        adam = Adam(lr=0.0001, beta_1=0.9, beta_2=0.999, epsilon=1e-09)
 
         model.add(Dense(2048, input_dim=2048, init="uniform", activation="relu", W_constraint=maxnorm(3)))
         model.add(Dropout(0.2))
@@ -362,7 +413,7 @@ class KlassIonMorgan(with_metaclass(ModelMetaClass, KlassSequential)):
         model.add(Dropout(0.3))
         model.add(BatchNormalization())
         model.add(Dense(3, activation = "softmax", init="normal"))
-        model.compile(loss="categorical_crossentropy", optimizer="Adam", metrics=["accuracy"])
+        model.compile(loss="categorical_crossentropy", optimizer=adam, metrics=["accuracy"])
 
         return model
 
@@ -378,7 +429,7 @@ class KlassIonDragon(with_metaclass(ModelMetaClass, KlassSequential)):
         # Define the model data view.
         # Define the model variable types here. Documented in "OSMModelData.py".
         self.arguments = {"DEPENDENT": {"VARIABLE": "ION_ACTIVITY", "SHAPE": [3], "TYPE": OSMModelData.CLASSES}
-            , "INDEPENDENT": [{"VARIABLE": "DRAGON", "SHAPE": [1552], "TYPE": OSMModelData.FLOAT64}]}
+            , "INDEPENDENT": [{"VARIABLE": "DRAGON", "SHAPE": [1666], "TYPE": OSMModelData.FLOAT64}]}
 
     # These functions need to be re-defined in all classifier model classes.
 
@@ -396,7 +447,9 @@ class KlassIonDragon(with_metaclass(ModelMetaClass, KlassSequential)):
 
         model = Sequential()
 
-        model.add(Dense(2048, input_dim=1552, init="uniform", activation="relu", W_constraint=maxnorm(3)))
+        adam = Adam(lr=0.0001, beta_1=0.9, beta_2=0.999, epsilon=1e-09)
+
+        model.add(Dense(2048, input_dim=1666, init="uniform", activation="relu", W_constraint=maxnorm(3)))
         model.add(Dropout(0.2))
         model.add(BatchNormalization())
         model.add(Dense(64, init="uniform", activation="relu", W_constraint=maxnorm(3)))
@@ -409,7 +462,7 @@ class KlassIonDragon(with_metaclass(ModelMetaClass, KlassSequential)):
         model.add(Dropout(0.3))
         model.add(BatchNormalization())
         model.add(Dense(3, activation = "softmax", init="normal"))
-        model.compile(loss="categorical_crossentropy", optimizer="Adam", metrics=["accuracy"])
+        model.compile(loss="categorical_crossentropy", optimizer=adam, metrics=["accuracy"])
 
         return model
 
@@ -436,7 +489,7 @@ class KlassBinaryMorgan(with_metaclass(ModelMetaClass, KlassSequential)):
 
     def model_description(self):
         return ("A KERAS (TensorFlow) multi-layer Neural Network class classification model. \n"
-                "This classifier analyzes MORGAN2048, MORGAN2048_4, TOPOLOGICAL2048 against any binary class")
+                "This classifier analyzes MORGAN2048_n, TOPOLOGICAL2048 against any binary class")
 
     def model_define(self):  # Defines the modified sequential class with regularizers defined.
 
@@ -468,7 +521,7 @@ class KlassBinaryDragon(with_metaclass(ModelMetaClass, KlassSequential)):
         # Define the model data view.
         # Define the model variable types here. Documented in "OSMModelData.py".
         self.arguments = {"DEPENDENT": {"VARIABLE": "EC50_500", "SHAPE": [2], "TYPE": OSMModelData.CLASSES}
-            , "INDEPENDENT": [{"VARIABLE": "DRAGON", "SHAPE": [1552], "TYPE": OSMModelData.FLOAT64}]}
+            , "INDEPENDENT": [{"VARIABLE": "DRAGON", "SHAPE": [1666], "TYPE": OSMModelData.FLOAT64}]}
 
     # These functions need to be re-defined in all classifier model classes.
 
@@ -486,7 +539,8 @@ class KlassBinaryDragon(with_metaclass(ModelMetaClass, KlassSequential)):
 
         model = Sequential()
 
-        model.add(Dense(2048, input_dim=1552, init="uniform", activation="relu", W_constraint=maxnorm(3)))
+
+        model.add(Dense(2048, input_dim=1666, init="uniform", activation="relu", W_constraint=maxnorm(3)))
         model.add(Dropout(0.2))
         model.add(BatchNormalization())
         model.add(Dense(64, init="uniform", activation="relu", W_constraint=maxnorm(3)))
@@ -503,3 +557,100 @@ class KlassBinaryDragon(with_metaclass(ModelMetaClass, KlassSequential)):
 
         return model
 
+
+
+# ===============================================================================
+# A meta Pattern Classifier
+# ===============================================================================
+
+
+class MetaSequential(with_metaclass(ModelMetaClass, KerasClassifier)):
+    def __init__(self, args, log):
+        super(MetaSequential, self).__init__(args, log)
+
+        # Define the model data view.
+        # Define the model variable types here. Documented in "OSMModelData.py".
+        self.arguments = {"DEPENDENT": {"VARIABLE": "ION_ACTIVITY", "SHAPE": [3], "TYPE": OSMModelData.CLASSES}
+            , "INDEPENDENT": [{"VARIABLE": "DRAGON", "SHAPE": [1666], "TYPE": OSMModelData.FLOAT64},
+                              {"VARIABLE": "MORGAN2048_4", "SHAPE": [2048], "TYPE": OSMModelData.FLOAT64}]}
+
+        self.dragon = KlassIonDragon(args, log)
+        self.morgan = KlassIonMorgan(args, log)
+
+        logc_args = copy.deepcopy(args) #ensure that args cannot be side-swiped.
+        logc_args.indepList = "DRAGON"
+        logc_args.dependVar = "ION_ACTIVITY"
+        self.logc = OSMSKLearnLOGC(logc_args, log).create_model()
+
+        nbc_args = copy.deepcopy(args)
+        nbc_args.indepList = "MORGAN2048_4"
+        nbc_args.dependVar = "ION_ACTIVITY"
+        self.nbc = OSMSKLearnNBC(nbc_args, log).create_model()
+
+
+    def model_name(self):
+        return "Meta DNN Classifier"
+
+    def model_postfix(self):  # Must be unique for each model.
+        return "ion_meta"
+
+    def model_description(self):
+        return ("A multi-layer Neural Network that uses other classification model probability functions as input. \n"
+                "The other classification models are not trained")
+
+    def model_define(self):  # Defines the modified sequential class with regularizers defined.
+
+        model = Sequential()
+
+        model.add(Dense(16, input_dim=6, init="uniform", activation="relu", W_constraint=maxnorm(3)))
+        model.add(Dropout(0.2))
+        model.add(BatchNormalization())
+        model.add(Dense(64, init="uniform", activation="relu", W_constraint=maxnorm(3)))
+        model.add(Dropout(0.3))
+        model.add(BatchNormalization())
+        model.add(Dense(64, init="uniform", activation="relu", W_constraint=maxnorm(3)))
+        model.add(Dropout(0.3))
+        model.add(BatchNormalization())
+        model.add(Dense(16, init="uniform", activation="relu", W_constraint=maxnorm(3)))
+        model.add(Dropout(0.3))
+        model.add(BatchNormalization())
+        model.add(Dense(3, activation = "softmax", init="normal"))
+        model.compile(loss="categorical_crossentropy", optimizer="Adam", metrics=["accuracy"])
+
+        return model
+
+    def model_prediction(self, data):
+
+        predictions = self.model.predict_classes(data.input_data(), verbose=0)
+        classes = self.model_enumerate_classes()
+        class_list = []
+        for predict in predictions:
+            class_list.append(classes[predict])
+        return {"prediction": class_list, "actual": data.target_data()}
+
+    def model_evaluate(self, data):
+        classes = self.model_enumerate_classes()
+        class_list = data.target_data()
+        index_list = []
+        for a_class in class_list:
+            index_list.append(classes.index(a_class))
+        binary_labels = np_utils.to_categorical(index_list)
+        score = self.model.evaluate(data.input_data(), binary_labels, verbose=0)
+        return score
+
+    def model_probability(self, data):  # probabilities are returned as a numpy.shape = (samples, classes)
+        prob =self.model.predict_proba(data.input_data())
+        prob_list = list(prob)
+        return {"probability": prob_list}
+
+    def train_epoch(self, epoch):
+
+        classes = self.model_enumerate_classes()
+        class_list = self.data.training().target_data()
+        index_list = []
+        for a_class in class_list:
+            index_list.append(classes.index(a_class))
+        binary_labels = np_utils.to_categorical(index_list)
+
+        self.model.fit(self.data.training().input_data(), binary_labels, validation_split=0.25
+                       , nb_epoch=epoch, batch_size=100, verbose=1)

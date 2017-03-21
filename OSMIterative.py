@@ -83,23 +83,23 @@ class OSMIterative(object):
 
                 self.iterative_model.log.info("ITERATIVE - Begin Training %s Model %d epochs"
                               , self.iterative_model.model_name(), train_epochs)
+                self.__trained_epochs__ += train_epochs
                 self.iterative_model.train_epoch(train_epochs)
                 self.iterative_model.log.info("ITERATIVE - End Training %s Model", self.iterative_model.model_name())
 
-                self.__trained_epochs__ += train_epochs
                 if self.__trained_epochs__ < self.__total_epochs__:
                     self.iterative_model.epoch_write(self.__trained_epochs__)
                     self.iterative_model.model_classification_results()
 
         elif self.iterative_model.args.train > 0:
             self.__total_epochs__ += self.iterative_model.args.train
-            self.iterative_model.train_epoch(self.iterative_model.args.train)
             self.__trained_epochs__ += self.iterative_model.args.train
+            self.iterative_model.train_epoch(self.iterative_model.args.train)
 
         elif self.iterative_model.args.train < 0:    # the train flag has not been specified.
             self.__total_epochs__ += default_epochs
-            self.iterative_model.train_epoch(default_epochs)
             self.__trained_epochs__ += default_epochs
+            self.iterative_model.train_epoch(default_epochs)
 
     def trained_epochs(self):
         return self.__trained_epochs__

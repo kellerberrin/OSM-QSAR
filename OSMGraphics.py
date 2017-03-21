@@ -67,10 +67,26 @@ class OSMSimilarityMap(object):
 
                 return fingerprint_morgan1024
 
-            elif var_name == "MORGAN2048":
+            elif var_name == "MORGAN2048_1":
+
+                def fingerprint_morgan2048(mol, atom):
+                    return SimilarityMaps.GetMorganFingerprint(mol, atom, 1, 'bv', 2048)
+
+
+                return fingerprint_morgan2048
+
+            elif var_name == "MORGAN2048_2":
 
                 def fingerprint_morgan2048(mol, atom):
                     return SimilarityMaps.GetMorganFingerprint(mol, atom, 2, 'bv', 2048)
+
+                return fingerprint_morgan2048
+
+            elif var_name == "MORGAN2048_3":
+
+                def fingerprint_morgan2048(mol, atom):
+                    return SimilarityMaps.GetMorganFingerprint(mol, atom, 3, 'bv', 2048)
+
 
                 return fingerprint_morgan2048
 
@@ -78,6 +94,13 @@ class OSMSimilarityMap(object):
 
                 def fingerprint_morgan2048_4(mol, atom):
                     return SimilarityMaps.GetMorganFingerprint(mol, atom, 4, 'bv', 2048)
+
+                return fingerprint_morgan2048_4
+
+            elif var_name == "MORGAN2048_5":
+
+                def fingerprint_morgan2048_4(mol, atom):
+                    return SimilarityMaps.GetMorganFingerprint(mol, atom, 5, 'bv', 2048)
 
                 return fingerprint_morgan2048_4
 

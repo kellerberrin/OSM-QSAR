@@ -62,10 +62,12 @@ class OSMClassification(OSMBaseModel):
     def model_classification_results(self):
         self.train_predictions = self.model_prediction(self.data.training())  # Returns a dict. with "prediction" and "actual"
         self.train_probability = self.model_probability(self.data.training())  # Returns a dict. with "probability"
+        self.train_objective = self.model_evaluate(self.data.training())
         self.train_stats = self.model_accuracy(self.train_predictions, self.train_probability)  # dictionary of stats
 
         self.test_predictions = self.model_prediction(self.data.testing())  # Returns a dict. with "prediction" and "actual"
         self.test_probability = self.model_probability(self.data.testing())  # Returns a dict. with "probability"
+        self.test_objective = self.model_evaluate(self.data.testing())
         self.test_stats = self.model_accuracy(self.test_predictions, self.test_probability)  # dictionary of stats
         # Send statistics to the console and log file.
         self.model_log_statistics()
@@ -78,22 +80,26 @@ class OSMClassification(OSMBaseModel):
         self.log_train_statistics(self.data.training(),
                                   self.train_stats,
                                   self.train_predictions,
-                                  self.train_probability)
+                                  self.train_probability,
+                                  self.train_objective)
         self.log_test_statistics(self.data.testing(),
                                  self.test_stats,
                                  self.test_predictions,
-                                 self.test_probability)
+                                 self.test_probability,
+                                 self.test_objective)
 
     def model_write_statistics(self):
         self.write_statistics(self.data.training(),
                               self.train_stats,
                               self.train_predictions,
                               self.train_probability,
+                              self.train_objective,
                               self.args.trainDirectory)
         self.write_statistics(self.data.testing(),
                               self.test_stats,
                               self.test_predictions,
                               self.test_probability,
+                              self.test_objective,
                               self.args.testDirectory)
 
     def model_accuracy(self, predictions, probability):
@@ -163,16 +169,18 @@ class OSMClassification(OSMBaseModel):
     #
     #####################################################################################
 
-    def log_train_statistics(self, data, statistics, predictions, probabilities):
+    def log_train_statistics(self, data, statistics, predictions, probabilities, objective):
 
         self.log.info("Training Compounds macro AUC: %f", statistics["macro_auc"])
         self.log.info("Training Compounds micro AUC: %f", statistics["micro_auc"])
         if statistics["class_auc"] is not None:
             for aclass, auc in zip(statistics["classes"], statistics["class_auc"]):
                 self.log.info("Training Compounds Class %s AUC: %f", aclass, auc)
+        for idx in range(len(objective)):
+            self.log.info("Train Model Objective-%d, %f",idx, objective[idx])
 
     # Display the classification results and write to the log file.
-    def log_test_statistics(self, data, statistics, predictions, probabilities):
+    def log_test_statistics(self, data, statistics, predictions, probabilities, objective):
         """Display all the calculated statistics for each model; run"""
         independent_list = []
         for var in self.model_arguments()["INDEPENDENT"]:
@@ -183,6 +191,8 @@ class OSMClassification(OSMBaseModel):
         for var in independent_list:
             self.log.info("Independent (Input) Variable(s): %s", var)
         self.log.info("Training Epochs: %d", self.model_epochs())
+        for idx in range(len(objective)):
+            self.log.info("Test Model Objective-%d, %f",idx, objective[idx])
         self.log.info("Test Compounds macro AUC: %f", statistics["macro_auc"])
         self.log.info("Test Compounds micro AUC: %f", statistics["micro_auc"])
         if statistics["class_auc"] is not None:
@@ -209,7 +219,7 @@ class OSMClassification(OSMBaseModel):
             self.log.info(line)
 
     # Open the statistics file and append the model results statistics.
-    def write_statistics(self, data, statistics, predictions, probabilities, directory):
+    def write_statistics(self, data, statistics, predictions, probabilities, objective, directory):
 
         stats_filename = os.path.join(directory, self.args.statsFilename)
         independent_list = []
@@ -235,6 +245,9 @@ class OSMClassification(OSMBaseModel):
                 stats_file.write(line)
                 line = "CPUtime, {}\n".format(time.clock())
                 stats_file.write(line)
+                for idx in range(len(objective)):
+                    line = "ModelObjective-{}, {}\n".format(idx,objective[idx])
+                    stats_file.write(line)
                 line = "++++++++++++++++,Test_Statistics,++++++++++++++++\n"
                 stats_file.write(line)
                 line = "Macro AUC, {}\n".format(statistics["macro_auc"])

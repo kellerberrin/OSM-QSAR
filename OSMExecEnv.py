@@ -65,23 +65,6 @@ class ExecEnv(object):
         ExecEnv.log = self.setup_logging(console_log_format)
 
 
-        # Create the model instances - ***careful***, args are not yet defined.
-        # Do not perform any classifications here.
-        # The instances should only generate postfixes, descriptions and model names.
-        # The model objects are held as singletons.
-
-        ExecEnv.modelInstances = get_model_instances(ExecEnv.args, ExecEnv.log)
-
-        # Generate a string of file extensions and create a suitable help string.
-
-        model_postfix = ""
-        for model_instance in ExecEnv.modelInstances:
-            model_postfix += model_instance.model_postfix() + ", "
-
-        classify_help = "Specify which classification model OSM_QSAR will execute using the model postfix code. "
-        classify_help += "Current defined model postfixes are: "
-        classify_help += model_postfix + '(default "seq").'
-        classify_help += 'For more information on current models specify the "--model" flag.'
 
         # Parse the runtime args
         parser = argparse.ArgumentParser(
@@ -185,7 +168,10 @@ class ExecEnv(object):
         parser.add_argument("--model", dest="modelDescriptions", action="store_true",
                             help=("Lists all defined regression and classification models and exits."))
         # --classify
-        parser.add_argument("--classify", dest="classifyType", default="seq", help=classify_help)
+        parser.add_argument("--classify", dest="classifyType", default="seq",
+                            help=("Specify which classification model OSM_QSAR will execute using the model"
+                                  ' postfix code (default "seq"). For more information on current models specify'
+                                  ' the "--model" flag.'))
         # --epoch
         parser.add_argument("--epoch", dest="epoch", default=-1, type=int,
                             help=(" Compulsory when loading Neural Networks and other iterative models."
@@ -194,6 +180,11 @@ class ExecEnv(object):
                                   '"--classify mod --load OSMClassifier -- epoch 1000 --train 0"'
                                   ' loads the KERAS "mod" model from "./<WorkDir>/mod/OSMClassifier_1000.krs"'
                                   ' and generates model statistics and graphics without further training'))
+
+        parser.add_argument("--holdout", dest="holdOut", default=0.0, type=float,
+                            help=(" The proportion of the training dataset in the range [0, 1] that is used for"
+                                  " training validation (default 0.0). This is very useful for checking pre-trained "
+                                  " Neural Network models to see if they have over-fitted the training data."))
         # --train
         parser.add_argument("--train", dest="train", default=-1, type=int,
                             help=("The number of training epochs (iterations). Ignored if not valid for model."))
@@ -206,6 +197,29 @@ class ExecEnv(object):
 
         ExecEnv.args = parser.parse_args()
 
+################# File Logging is here ########################################################
+
+        ExecEnv.args.logFilename = os.path.join(ExecEnv.args.workDirectory,ExecEnv.args.logFilename)
+
+        if ExecEnv.args.newLogFilename != "nonewlog" and ExecEnv.args.newLogFilename is not None:
+            ExecEnv.args.newLogFilename = os.path.join(ExecEnv.args.workDirectory,ExecEnv.args.newLogFilename)
+            log_append = False
+            self.setup_file_logging(ExecEnv.args.newLogFilename, log_append, file_log_format)
+
+        elif ExecEnv.args.newLogFilename != "nonewlog":  # No filename supplied (optional arg).
+            ExecEnv.args.newLogFilename = os.path.join(ExecEnv.args.workDirectory,"OSM_QSAR.log")
+            log_append = False
+            self.setup_file_logging(ExecEnv.args.newLogFilename, log_append, file_log_format)
+
+        else:
+            log_append = True
+            self.setup_file_logging(ExecEnv.args.logFilename, log_append, file_log_format)
+
+################# Models are created here ########################################################
+
+        # The model objects are held as singletons.
+
+        ExecEnv.modelInstances = get_model_instances(ExecEnv.args, ExecEnv.log)
 
         # List the available models and exit.
         if ExecEnv.args.modelDescriptions:
@@ -218,17 +232,13 @@ class ExecEnv(object):
             ExecEnv.log.info(ExecEnv.list_available_models())
             sys.exit()
 
+################# Other house keeping ########################################################
+
         # Check that the work directory exists and terminate if not.
         if not os.path.isdir(ExecEnv.args.workDirectory):
             ExecEnv.log.error('The OSM_QSAR work directory: "%s" does not exist.', ExecEnv.args.workDirectory)
             ExecEnv.log.error("Create or Rename the work directory.")
             ExecEnv.log.error('Please examine the --dir" and "--help" flags.')
-            sys.exit()
-
-        # Check that the specified model postfix exists
-        if ExecEnv.selected_model() is None:
-            ExecEnv.log.warning("No classification model found for prefix: %s", ExecEnv.args.classifyType)
-            ExecEnv.log.warning('Use the "--model" flag to see the available classification models.')
             sys.exit()
 
         # Check to see if the postfix directory and subdirectories exist and create if necessary.
@@ -281,21 +291,6 @@ class ExecEnv(object):
 
         ExecEnv.args.saveFilename = os.path.join(postfix_directory,ExecEnv.args.saveFilename)
 
-        ExecEnv.args.logFilename = os.path.join(ExecEnv.args.workDirectory,ExecEnv.args.logFilename)
-
-        if ExecEnv.args.newLogFilename != "nonewlog" and ExecEnv.args.newLogFilename is not None:
-            ExecEnv.args.newLogFilename = os.path.join(ExecEnv.args.workDirectory,ExecEnv.args.newLogFilename)
-            log_append = False
-            self.setup_file_logging(ExecEnv.args.newLogFilename, log_append, file_log_format)
-
-        elif ExecEnv.args.newLogFilename != "nonewlog":  # No filename supplied (optional arg).
-            ExecEnv.args.newLogFilename = os.path.join(ExecEnv.args.workDirectory,"OSM_QSAR.log")
-            log_append = False
-            self.setup_file_logging(ExecEnv.args.newLogFilename, log_append, file_log_format)
-
-        else:
-            log_append = True
-            self.setup_file_logging(ExecEnv.args.logFilename, log_append, file_log_format)
 
         # Check that the data file exists and terminate if not.
         if not os.path.exists(ExecEnv.args.dataFilename):
@@ -312,9 +307,6 @@ class ExecEnv(object):
 
         ExecEnv.cmdLine = cmd_line
 
-        # Update the args in the classifier singletons.
-        for instance in ExecEnv.modelInstances:
-            instance.model_update_environment(ExecEnv.args)
 
     @staticmethod
     def list_available_models():

@@ -131,9 +131,6 @@ class OSMBaseModel(object):
 
     def model_arguments(self): return self.arguments
 
-    # Necessary because we need to create the model singletons before the args are ready.
-    def model_update_environment(self, args): self.args = args
-
     #####################################################################################
     #
     # Virtual member functions redefined elsewhere in the object hierarchy
@@ -156,3 +153,4 @@ class OSMBaseModel(object):
 
     def model_epochs(self): return 0
 
+    def model_evaluate(self, data): return []

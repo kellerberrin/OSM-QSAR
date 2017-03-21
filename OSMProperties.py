@@ -61,6 +61,7 @@ class OSMGenerateData(object):
             self.display_variables()
             sys.exit()
 
+
     def display_variables(self):
             for column in self.data.columns:
                 msg = "Variable: {:20s} Dimension: {:4d}".format(column, self.get_dimension(column))
@@ -87,7 +88,8 @@ class OSMGenerateData(object):
 
         # Add the finger print columns
         morgan_1024 = lambda x: AllChem.GetMorganFingerprintAsBitVect(x, 4, nBits=1024)
-        morgan_2048 = lambda x: AllChem.GetMorganFingerprintAsBitVect(x, 2, nBits=2048)
+        morgan_2048_1 = lambda x: AllChem.GetMorganFingerprintAsBitVect(x, 1, nBits=2048)
+        morgan_2048_2 = lambda x: AllChem.GetMorganFingerprintAsBitVect(x, 2, nBits=2048)
         morgan_2048_3 = lambda x: AllChem.GetMorganFingerprintAsBitVect(x, 3, nBits=2048)
         morgan_2048_4 = lambda x: AllChem.GetMorganFingerprintAsBitVect(x, 4, nBits=2048)
         morgan_2048_5 = lambda x: AllChem.GetMorganFingerprintAsBitVect(x, 5, nBits=2048)
@@ -95,7 +97,8 @@ class OSMGenerateData(object):
         macc = lambda x: AllChem.GetMACCSKeysFingerprint(x)
 
         self.add_bitvect_fingerprint(self.data, morgan_1024, "MORGAN1024")
-        self.add_bitvect_fingerprint(self.data, morgan_2048, "MORGAN2048")
+        self.add_bitvect_fingerprint(self.data, morgan_2048_1, "MORGAN2048_1")
+        self.add_bitvect_fingerprint(self.data, morgan_2048_2, "MORGAN2048_2")
         self.add_bitvect_fingerprint(self.data, morgan_2048_3, "MORGAN2048_3")
         self.add_bitvect_fingerprint(self.data, morgan_2048_4, "MORGAN2048_4")
         self.add_bitvect_fingerprint(self.data, morgan_2048_5, "MORGAN2048_5")
@@ -118,10 +121,13 @@ class OSMGenerateData(object):
             narray = narray.astype(np.float64)
             narray_list = [ x for x in narray]
             new_frame["DRAGON"] = pd.Series(narray_list, index=data_frame.index)
-#            print("Shape before", self.data.shape)
+            before_ids = list(self.data["ID"])
             self.data = pd.merge(self.data, new_frame, how="inner", on=["SMILE"])
             self.data = self.data.drop_duplicates(subset=["SMILE"], keep="first")
-#            print("Shape after", self.data.shape)
+            after_ids = list(self.data["ID"])
+            missing_list = list(set(before_ids) - set(after_ids))
+            for missing in missing_list:
+                self.log.warning("Dropped molecule ID: %s after join with DRAGON data", missing)
 
             pca = PCA(n_components=10)
             pca.fit(narray_list)
@@ -133,12 +139,6 @@ class OSMGenerateData(object):
             kpca.fit(narray_list)
             kpca_array = kpca.transform(narray_list)
             kpca_list = [ x for x in kpca_array]
-#            self.data["DRAGON_KPCA"] = pd.Series(kpca_list, index=data_frame.index)
-
-#            print("PCA", pca.explained_variance_ratio_, "shape", pca_array.shape)
-#            dragon = self.data["DRAGON"]
-#            dragon_list = [x[0] for x in dragon]
-#            print("SMILE", self.data["SMILE"][705], dragon_list[705], self.data["pIC50"][705])
 
         except IOError:
             self.log.error('Problem reading EDragon file %s, Check "--data", ""--dir" and --help" flags.', file_name)
@@ -197,7 +197,7 @@ class OSMGenerateData(object):
                 result = Chem.SanitizeMol(mol)
                 if result != Chem.SanitizeFlags.SANITIZE_NONE:
                     sanitized_smile = Chem.MolToSmiles(mol)
-                    self.log.warning("Sanitized SMILE %s, Compound ID:%s", sanitized_smile, data_frame[index, "ID"])
+                    self.log.warning("Sanitized SMILE %s, Compound ID:%s", sanitized_smile, row["ID"])
                     data_frame.set_value(index, "SMILE", sanitized_smile)
             except:
                 self.log.warning("Unable to Sanitize SMILE %s, Compound ID:%s", row["SMILE"] , row["ID"])

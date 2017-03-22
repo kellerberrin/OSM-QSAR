@@ -67,7 +67,6 @@ class OSMSKLearnClassifier(with_metaclass(ModelMetaClass, OSMClassification)):
         self.arguments = { "DEPENDENT" : { "VARIABLE" : "IC50_ACTIVITY", "SHAPE" : [None], "TYPE": OSMModelData.CLASSES }
                          , "INDEPENDENT" : [ { "VARIABLE" : "MORGAN2048_4", "SHAPE": [None], "TYPE": np.float64 } ] }
 
-
     def model_train(self):
         # Restrict the SVM to 1 input argument
         self.model.fit(self.data.training().input_data(), self.data.training().target_data())

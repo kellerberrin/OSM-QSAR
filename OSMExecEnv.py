@@ -215,6 +215,39 @@ class ExecEnv(object):
             log_append = True
             self.setup_file_logging(ExecEnv.args.logFilename, log_append, file_log_format)
 
+        # Check to see if the postfix directory and subdirectories exist and create if necessary.
+        postfix_directory = os.path.join(ExecEnv.args.workDirectory, ExecEnv.args.classifyType)
+        test_directory = os.path.join(postfix_directory, "test")
+        train_directory = os.path.join(postfix_directory, "train")
+        # Append the postfix directory to the environment file names.
+        ExecEnv.args.postfixDirectory = postfix_directory
+        ExecEnv.args.testDirectory = test_directory
+        ExecEnv.args.trainDirectory = train_directory
+
+        ExecEnv.args.dataFilename = os.path.join(ExecEnv.args.workDirectory, ExecEnv.args.dataFilename)
+        ExecEnv.args.dragonFilename = os.path.join(ExecEnv.args.workDirectory, ExecEnv.args.dragonFilename)
+
+        if ExecEnv.args.loadFilename != "noload":
+            ExecEnv.args.loadFilename = os.path.join(postfix_directory,ExecEnv.args.loadFilename)
+
+        ExecEnv.args.saveFilename = os.path.join(postfix_directory,ExecEnv.args.saveFilename)
+
+
+        # Check that the data file exists and terminate if not.
+        if not os.path.exists(ExecEnv.args.dataFilename):
+            ExecEnv.log.error('The OSM_QSAR data file: "%s" does not exist.', ExecEnv.args.dataFilename)
+            ExecEnv.log.error('Please examine the "--dir", "--data" and "--help" flags.')
+            sys.exit()
+
+        # Set up the classification variables.
+        ExecEnv.setup_variables()
+
+        cmd_line = ""
+        for argStr in sys.argv:
+            cmd_line += argStr + " "
+
+        ExecEnv.cmdLine = cmd_line
+
 ################# Models are created here ########################################################
 
         # The model objects are held as singletons.
@@ -241,14 +274,6 @@ class ExecEnv(object):
             ExecEnv.log.error('Please examine the --dir" and "--help" flags.')
             sys.exit()
 
-        # Check to see if the postfix directory and subdirectories exist and create if necessary.
-        postfix_directory = os.path.join(ExecEnv.args.workDirectory, ExecEnv.args.classifyType)
-        test_directory = os.path.join(postfix_directory, "test")
-        train_directory = os.path.join(postfix_directory, "train")
-        # Append the postfix directory to the environment file names.
-        ExecEnv.args.postfixDirectory = postfix_directory
-        ExecEnv.args.testDirectory = test_directory
-        ExecEnv.args.trainDirectory = train_directory
 
         try:
             if not os.path.isdir(postfix_directory):
@@ -283,29 +308,6 @@ class ExecEnv(object):
                 ExecEnv.log.error("Check <postfix> subdirectories and file permissions.")
                 sys.exit()
 
-        ExecEnv.args.dataFilename = os.path.join(ExecEnv.args.workDirectory, ExecEnv.args.dataFilename)
-        ExecEnv.args.dragonFilename = os.path.join(ExecEnv.args.workDirectory, ExecEnv.args.dragonFilename)
-
-        if ExecEnv.args.loadFilename != "noload":
-            ExecEnv.args.loadFilename = os.path.join(postfix_directory,ExecEnv.args.loadFilename)
-
-        ExecEnv.args.saveFilename = os.path.join(postfix_directory,ExecEnv.args.saveFilename)
-
-
-        # Check that the data file exists and terminate if not.
-        if not os.path.exists(ExecEnv.args.dataFilename):
-            ExecEnv.log.error('The OSM_QSAR data file: "%s" does not exist.', ExecEnv.args.dataFilename)
-            ExecEnv.log.error('Please examine the "--dir", "--data" and "--help" flags.')
-            sys.exit()
-
-        # Set up the classification variables.
-        ExecEnv.setup_variables()
-
-        cmd_line = ""
-        for argStr in sys.argv:
-            cmd_line += argStr + " "
-
-        ExecEnv.cmdLine = cmd_line
 
 
     @staticmethod

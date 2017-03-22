@@ -85,7 +85,7 @@ class OSMModelData(object):
         self.log = log
         self.args = args
         self.model_args = model.model_arguments()
-        self.model_df = copy.deepcopy(data.get_data())    # The data object may used elsewhere, leave it unmolested.
+        self.model_df = copy.deepcopy(data.get_data())    # The data object is used elsewhere, leave it unmolested.
         self.dragon_headers = data.get_dragon_headers()
         self.train, self.test = self.setup_model_data()
 
@@ -95,7 +95,7 @@ class OSMModelData(object):
     def testing(self):   # Access the test (target) data (returns the adapter class).
         return AccessData(self, self.test)
 
-    def all(self):   # Access the test (target) data (returns the adapter class).
+    def all(self):   # Access all the data (returns the adapter class).
         return AccessData(self, self.model_df)
 
     @staticmethod
@@ -294,17 +294,11 @@ class AccessData(object): # The adapter class actually used to return data to th
             matrix = np.matrix(self.data[self.model_args["INDEPENDENT"][0]["VARIABLE"]].tolist())
             return matrix # numpy matrix.
         elif len(self.model_args["INDEPENDENT"]) > 1:
-            matrix_list = []
+            matrix_dict = {}
             for var in self.model_args["INDEPENDENT"]:
-                matrix = self.data[var["VARIABLE"]].tolist()
-                matrix_list.append(matrix)
-            cat_numpy = matrix_list[0]
-            print("catnumpy_shape[0]", cat_numpy[0].shape)
-            for idx in range(len(matrix_list)-1):
-                print("catnumpy:", idx, matrix_list[idx+1][0].shape)
-                cat_numpy = np.concatenate((cat_numpy, matrix_list[idx+1]), axis=1)
-            print("net catnumpy_shape", cat_numpy.shape)
-            return cat_numpy   # return as a concatonated numpy
+                matrix = np.matrix(self.data[var["VARIABLE"]].tolist())
+                matrix_dict[var["VARIABLE"]] = matrix
+            return matrix_dict   # return as a dictionary
         else: # zero independent arguments - error
             self.log.error("No independent variables defined for model.")
             sys.exit()

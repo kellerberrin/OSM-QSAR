@@ -111,13 +111,18 @@ class OSMBaseModel(object):
 
     def classify(self, data):
 
-        self.model = self.create_model()
+        self.initialize(data)
+        self.model_write()
+
+    def initialize(self, data):
+
+        self.raw_data = data    #The entire dataset for recursive models.
         self.data = OSMModelData(self.args, self.log, self, data) # create a "model-centric" view of the data.
+        self.model = self.create_model()
 
         self.log.info("Begin Training %s Model", self.model_name())
         self.model_train()
         self.log.info("End Training %s Model", self.model_name())
-        self.model_write()
         self.model_classification_results()
 
     def create_model(self):

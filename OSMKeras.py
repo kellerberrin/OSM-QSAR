@@ -37,11 +37,12 @@ from keras.models import Sequential
 from keras.layers import Dense
 from keras.layers import Dropout
 from keras.layers import normalization, BatchNormalization
-from keras.regularizers import l2, activity_l2
+from keras.regularizers import l2, l1l2, activity_l2
 from keras.models import load_model
 from keras.constraints import maxnorm
 from keras.optimizers import SGD, Adam, Adagrad, Adadelta
 from keras.utils import np_utils
+
 from keras.utils.visualize_util import plot
 import keras.backend as backend
 
@@ -259,6 +260,31 @@ class KerasClassifier(OSMClassification):
         self.similarity_graphics()
         self.dragon_graphics()
 
+    def train_history(self, file_name, history, epoch):
+
+        model_file_path = os.path.join(self.args.postfixDirectory, file_name)
+        total_epochs = self.model_epochs()
+        begin_epoch = total_epochs - epoch + 1
+
+        try:
+
+            with open(model_file_path, 'a') as stats_file:
+
+                for idx in range(epoch):
+
+                    if self.args.holdOut > 0.0:
+                        line = "epoch, {}, loss, {}, acc, {}, validate_loss, {}, validate_acc, {}\n".format(
+                            begin_epoch + idx, history["loss"][idx], history["acc"][idx],
+                            history["val_loss"][idx], history["val_acc"][idx])
+                    else:
+                        line = "epoch, {}, loss, {}, acc, {}\n".format(
+                            begin_epoch + idx, history["loss"][idx], history["acc"][idx])
+
+                    stats_file.write(line)
+
+        except IOError:
+            self.log.error("Problem writing to model statistics file %s, check path and permissions", model_file_path)
+
     def dragon_graphics(self):
 
         func = lambda x: self.model.predict_probapredict_func(x, verbose=0)[0][0]
@@ -331,49 +357,70 @@ class KlassSequential(with_metaclass(ModelMetaClass, KerasClassifier)):
     def train_epoch(self, epoch):
 
         # shuffle the hold out validation data each epoch.
-        X, y = shuffle(self.data.training().input_data(), self.data.training().target_data())
+#        X, y = shuffle(self.data.training().input_data(), self.data.training().target_data())
 
         classes = self.model_enumerate_classes()
-        class_list = y
+        class_list = self.data.training().target_data()
         index_list = []
         for a_class in class_list:
             index_list.append(classes.index(a_class))
         binary_labels = np_utils.to_categorical(index_list)
 
-        hist = self.model.fit(X, binary_labels, validation_split=self.args.holdOut
+        hist = self.model.fit(self.data.training().input_data(), binary_labels, validation_split=self.args.holdOut
                               , nb_epoch=epoch, batch_size=100, verbose=1)
 
         self.train_history("model_aux.csv", hist.history, epoch)
 
 
-    def train_history(self, file_name, history, epoch):
-
-        model_file_path = os.path.join(self.args.postfixDirectory, file_name)
-        total_epochs = self.model_epochs()
-        begin_epoch = total_epochs - epoch + 1
-
-        try:
-
-            with open(model_file_path, 'a') as stats_file:
-
-                for idx in range(epoch):
-
-                    if self.args.holdOut > 0.0:
-                        line = "epoch, {}, loss, {}, validate_loss, {}\n".format(begin_epoch + idx
-                                                    , history["loss"][idx], history["val_loss"][idx])
-                    else:
-                        line = "epoch, {}, loss, {}\n".format(begin_epoch + idx, history["loss"][idx])
-
-                    stats_file.write(line)
-
-        except IOError:
-            self.log.error("Problem writing to model statistics file %s, check path and permissions", model_file_path)
-
-
-
 # ===============================================================================
 # Keras Pattern Classifier, fits ION ACTIVITY to MORGAN2048_4
 # ===============================================================================
+
+class KlassIonMaccs(with_metaclass(ModelMetaClass, KlassSequential)):
+    def __init__(self, args, log):
+        super(KlassIonMaccs, self).__init__(args, log)
+
+        # Define the model data view.
+        # Define the model variable types here. Documented in "OSMModelData.py".
+        self.arguments = {"DEPENDENT": {"VARIABLE": "ION_ACTIVITY", "SHAPE": [3], "TYPE": OSMModelData.CLASSES}
+            , "INDEPENDENT": [{"VARIABLE": "MACCFP", "SHAPE": [167], "TYPE": OSMModelData.FLOAT64}]}
+
+    # These functions need to be re-defined in all classifier model classes.
+
+    def model_name(self):
+        return "MORGAN > ION_ACTIVITY Classifier"
+
+    def model_postfix(self):  # Must be unique for each model.
+        return "ion_macc"
+
+    def model_description(self):
+        return ("A KERAS (TensorFlow) multi-layer Neural Network class classification model. \n"
+                "This classifier analyzes the MACCS fingerprint against ION_ACTIVITY")
+
+
+    def model_define(self):  # Defines the modified sequential class with regularizers defined.
+
+        model = Sequential()
+
+        adam = Adam(lr=0.0001, beta_1=0.9, beta_2=0.999, epsilon=1e-09)
+
+        model.add(Dense(2048, input_dim=167, init="uniform", activation="tanh", W_constraint=maxnorm(3)))
+        model.add(Dropout(0.2))
+        model.add(BatchNormalization())
+        model.add(Dense(32, init="uniform", activation="tanh", W_constraint=maxnorm(3)))
+        model.add(Dropout(0.2))
+        model.add(BatchNormalization())
+        model.add(Dense(8, init="uniform", activation="tanh", W_constraint=maxnorm(3)))
+        model.add(Dropout(0.3))
+        model.add(BatchNormalization())
+        model.add(Dense(3, activation = "softmax", init="normal"))
+        model.compile(loss="categorical_crossentropy", optimizer=adam, metrics=["accuracy"])
+
+        return model
+
+    # ===============================================================================
+    # Keras Pattern Classifier, fits ION ACTIVITY to MORGAN2048_4
+    # ===============================================================================
 
 class KlassIonMorgan(with_metaclass(ModelMetaClass, KlassSequential)):
     def __init__(self, args, log):
@@ -394,8 +441,7 @@ class KlassIonMorgan(with_metaclass(ModelMetaClass, KlassSequential)):
 
     def model_description(self):
         return ("A KERAS (TensorFlow) multi-layer Neural Network class classification model. \n"
-                "This classifier analyzes the MORGAN2048_n, TOPOLOGICAL2048 against ION_ACTIVITY")
-
+                "This classifier analyzes the MORGAN2048_n, TOPOLOGICAL2048  fingerprints against ION_ACTIVITY")
 
     def model_define(self):  # Defines the modified sequential class with regularizers defined.
 
@@ -403,7 +449,7 @@ class KlassIonMorgan(with_metaclass(ModelMetaClass, KlassSequential)):
 
         adam = Adam(lr=0.0001, beta_1=0.9, beta_2=0.999, epsilon=1e-09)
 
-        model.add(Dense(2048, input_dim=2048, init="uniform", activation="relu", W_constraint=maxnorm(3)))
+        model.add(Dense(2048, input_dim=167, init="uniform", activation="relu", W_constraint=maxnorm(3)))
         model.add(Dropout(0.2))
         model.add(BatchNormalization())
         model.add(Dense(32, init="uniform", activation="relu", W_constraint=maxnorm(3)))
@@ -412,11 +458,10 @@ class KlassIonMorgan(with_metaclass(ModelMetaClass, KlassSequential)):
         model.add(Dense(8, init="uniform", activation="relu", W_constraint=maxnorm(3)))
         model.add(Dropout(0.3))
         model.add(BatchNormalization())
-        model.add(Dense(3, activation = "softmax", init="normal"))
+        model.add(Dense(3, activation="softmax", init="normal"))
         model.compile(loss="categorical_crossentropy", optimizer=adam, metrics=["accuracy"])
 
         return model
-
 
 # ===============================================================================
 # Keras Pattern Classifier, fits ION ACTIVITY to the DRAGON data.
@@ -446,20 +491,28 @@ class KlassIonDragon(with_metaclass(ModelMetaClass, KlassSequential)):
     def model_define(self):  # Defines the modified sequential class with regularizers defined.
 
         model = Sequential()
+        l2_param = 0.0
+        l1_param = 0.0
+        dropout_param = 0.0
 
-        adam = Adam(lr=0.0001, beta_1=0.9, beta_2=0.999, epsilon=1e-09)
+        adam = Adam(lr=0.0005, beta_1=0.9, beta_2=0.999, epsilon=5e-09)
 
-        model.add(Dense(2048, input_dim=1666, init="uniform", activation="relu", W_constraint=maxnorm(3)))
-        model.add(Dropout(0.2))
+        model.add(Dense(2048, input_dim=1666, init="uniform", activation="relu"
+                        , activity_regularizer=l1l2(l1_param, l2_param), W_constraint=maxnorm(3)))
+        model.add(Dropout(dropout_param))
         model.add(BatchNormalization())
-        model.add(Dense(64, init="uniform", activation="relu", W_constraint=maxnorm(3)))
-        model.add(Dropout(0.3))
+        model.add(Dense(2048, init="uniform", activation="relu"
+                        , activity_regularizer=l1l2(l1_param,l2_param), W_constraint=maxnorm(3)))
+        model.add(Dropout(dropout_param))
         model.add(BatchNormalization())
-        model.add(Dense(64, init="uniform", activation="relu", W_constraint=maxnorm(3)))
-        model.add(Dropout(0.3))
+        model.add(Dense(512, init="uniform", activation="relu"
+                        , activity_regularizer=l1l2(l1_param, l2_param), W_constraint=maxnorm(3)))
+        model.add(Dropout(dropout_param))
         model.add(BatchNormalization())
-        model.add(Dense(16, init="uniform", activation="relu", W_constraint=maxnorm(3)))
-        model.add(Dropout(0.3))
+        model.add(Dense(64, init="uniform", activation="relu"
+                        , activity_regularizer=l1l2(l1_param, l2_param), W_constraint=maxnorm(3)))
+
+        model.add(Dropout(dropout_param))
         model.add(BatchNormalization())
         model.add(Dense(3, activation = "softmax", init="normal"))
         model.compile(loss="categorical_crossentropy", optimizer=adam, metrics=["accuracy"])
@@ -572,20 +625,75 @@ class MetaSequential(with_metaclass(ModelMetaClass, KerasClassifier)):
         # Define the model variable types here. Documented in "OSMModelData.py".
         self.arguments = {"DEPENDENT": {"VARIABLE": "ION_ACTIVITY", "SHAPE": [3], "TYPE": OSMModelData.CLASSES}
             , "INDEPENDENT": [{"VARIABLE": "DRAGON", "SHAPE": [1666], "TYPE": OSMModelData.FLOAT64},
-                              {"VARIABLE": "MORGAN2048_4", "SHAPE": [2048], "TYPE": OSMModelData.FLOAT64}]}
+                              {"VARIABLE": "MORGAN2048_4", "SHAPE": [2048], "TYPE": OSMModelData.FLOAT64},
+                              {"VARIABLE": "MORGAN2048_5", "SHAPE": [2048], "TYPE": OSMModelData.FLOAT64},
+                              {"VARIABLE": "TOPOLOGICAL2048", "SHAPE": [2048], "TYPE": OSMModelData.FLOAT64},
+                              {"VARIABLE": "MORGAN2048_1", "SHAPE": [2048], "TYPE": OSMModelData.FLOAT64},
+                              {"VARIABLE": "MACCFP", "SHAPE": [167], "TYPE": OSMModelData.FLOAT64}]}
 
-        self.dragon = KlassIonDragon(args, log)
-        self.morgan = KlassIonMorgan(args, log)
 
-        logc_args = copy.deepcopy(args) #ensure that args cannot be side-swiped.
-        logc_args.indepList = "DRAGON"
+        self.model_define_meta(args, log)
+
+    def model_define_meta(self, args, log):
+
+        ion_d_args = copy.deepcopy(args) #ensure that args cannot be side-swiped.
+        ion_d_args.indepList = ["DRAGON"]
+        ion_d_args.dependVar = "ION_ACTIVITY"
+        ion_d_args.train = 0
+        ion_d_args.epoch = 625
+        ion_d_args.loadFilename = os.path.join(ion_d_args.postfixDirectory, "ION_DRAGON")
+        self.dnn_dragon = KlassIonDragon(ion_d_args, log)
+
+        ion_m1_args = copy.deepcopy(args) #ensure that args cannot be side-swiped.
+        ion_m1_args.indepList = ["MORGAN2048_1"]
+        ion_m1_args.dependVar = "ION_ACTIVITY"
+        ion_m1_args.train = 0
+        ion_m1_args.epoch = 150
+        ion_m1_args.loadFilename = os.path.join(ion_d_args.postfixDirectory, "ION_MORGAN1")
+        self.dnn_morgan1 = KlassIonMorgan(ion_m1_args, log)
+
+        ion_m5_args = copy.deepcopy(args) #ensure that args cannot be side-swiped.
+        ion_m5_args.indepList = ["MORGAN2048_5"]
+        ion_m5_args.dependVar = "ION_ACTIVITY"
+        ion_m5_args.train = 0
+        ion_m5_args.epoch = 220
+        ion_m5_args.loadFilename = os.path.join(ion_d_args.postfixDirectory, "ION_MORGAN5")
+        self.dnn_morgan5 = KlassIonMorgan(ion_m5_args, log)
+
+        ion_top_args = copy.deepcopy(args) #ensure that args cannot be side-swiped.
+        ion_top_args.indepList = ["TOPOLOGICAL2048"]
+        ion_top_args.dependVar = "ION_ACTIVITY"
+        ion_top_args.train = 0
+        ion_top_args.epoch = 60
+        ion_top_args.loadFilename = os.path.join(ion_d_args.postfixDirectory, "ION_TOPOLOGICAL")
+        self.dnn_top = KlassIonMorgan(ion_top_args, log)
+
+        ion_macc_args = copy.deepcopy(args) #ensure that args cannot be side-swiped.
+        ion_macc_args.indepList = ["MACCFP"]
+        ion_macc_args.dependVar = "ION_ACTIVITY"
+        ion_macc_args.train = 0
+        ion_macc_args.epoch = 30
+        ion_macc_args.loadFilename = os.path.join(ion_d_args.postfixDirectory, "ION_MACCS")
+        self.dnn_macc = KlassIonMaccs(ion_macc_args, log)
+
+        logc_args = copy.deepcopy(args)
+        logc_args.indepList = ["DRAGON"]
         logc_args.dependVar = "ION_ACTIVITY"
-        self.logc = OSMSKLearnLOGC(logc_args, log).create_model()
+        self.logc = OSMSKLearnLOGC(logc_args, log)
 
         nbc_args = copy.deepcopy(args)
-        nbc_args.indepList = "MORGAN2048_4"
+        nbc_args.indepList = ["MORGAN2048_4"]
         nbc_args.dependVar = "ION_ACTIVITY"
-        self.nbc = OSMSKLearnNBC(nbc_args, log).create_model()
+        self.nbc = OSMSKLearnNBC(nbc_args, log)
+
+    def model_meta_train(self):
+        self.nbc.initialize(self.raw_data)
+        self.logc.initialize(self.raw_data)
+        self.dnn_dragon.initialize(self.raw_data)
+        self.dnn_morgan1.initialize(self.raw_data)
+        self.dnn_morgan5.initialize(self.raw_data)
+        self.dnn_top.initialize(self.raw_data)
+        self.dnn_macc.initialize(self.raw_data)
 
 
     def model_name(self):
@@ -596,32 +704,34 @@ class MetaSequential(with_metaclass(ModelMetaClass, KerasClassifier)):
 
     def model_description(self):
         return ("A multi-layer Neural Network that uses other classification model probability functions as input. \n"
-                "The other classification models are not trained")
+                "The other classification models are pre-trained")
 
     def model_define(self):  # Defines the modified sequential class with regularizers defined.
 
+        self.model_meta_train()
+        return self.model_arch()
+
+    def model_arch(self):  # Defines the modified sequential class with regularizers defined.
+
         model = Sequential()
+        dropout_param = 0.0
+
+        adam = Adam(lr=0.001, beta_1=0.9, beta_2=0.999, epsilon=1e-08)
 
         model.add(Dense(16, input_dim=6, init="uniform", activation="relu", W_constraint=maxnorm(3)))
-        model.add(Dropout(0.2))
-        model.add(BatchNormalization())
+        model.add(Dropout(dropout_param))
         model.add(Dense(64, init="uniform", activation="relu", W_constraint=maxnorm(3)))
-        model.add(Dropout(0.3))
-        model.add(BatchNormalization())
-        model.add(Dense(64, init="uniform", activation="relu", W_constraint=maxnorm(3)))
-        model.add(Dropout(0.3))
-        model.add(BatchNormalization())
+        model.add(Dropout(dropout_param))
         model.add(Dense(16, init="uniform", activation="relu", W_constraint=maxnorm(3)))
-        model.add(Dropout(0.3))
-        model.add(BatchNormalization())
+        model.add(Dropout(dropout_param))
         model.add(Dense(3, activation = "softmax", init="normal"))
-        model.compile(loss="categorical_crossentropy", optimizer="Adam", metrics=["accuracy"])
+        model.compile(loss="categorical_crossentropy", optimizer=adam, metrics=["accuracy"])
 
         return model
 
     def model_prediction(self, data):
 
-        predictions = self.model.predict_classes(data.input_data(), verbose=0)
+        predictions = self.model.predict_classes(self.input_probability(data), verbose=0)
         classes = self.model_enumerate_classes()
         class_list = []
         for predict in predictions:
@@ -635,11 +745,11 @@ class MetaSequential(with_metaclass(ModelMetaClass, KerasClassifier)):
         for a_class in class_list:
             index_list.append(classes.index(a_class))
         binary_labels = np_utils.to_categorical(index_list)
-        score = self.model.evaluate(data.input_data(), binary_labels, verbose=0)
+        score = self.model.evaluate(self.input_probability(data), binary_labels, verbose=0)
         return score
 
     def model_probability(self, data):  # probabilities are returned as a numpy.shape = (samples, classes)
-        prob =self.model.predict_proba(data.input_data())
+        prob =self.model.predict_proba(self.input_probability(data))
         prob_list = list(prob)
         return {"probability": prob_list}
 
@@ -652,5 +762,33 @@ class MetaSequential(with_metaclass(ModelMetaClass, KerasClassifier)):
             index_list.append(classes.index(a_class))
         binary_labels = np_utils.to_categorical(index_list)
 
-        self.model.fit(self.data.training().input_data(), binary_labels, validation_split=0.25
-                       , nb_epoch=epoch, batch_size=100, verbose=1)
+        hist = self.model.fit(self.input_probability(self.data.training()), binary_labels,
+                       validation_split=self.args.holdOut, nb_epoch=epoch, verbose=1)
+
+        self.train_history("model_aux.csv", hist.history, epoch)
+
+    def epoch_read(self, epoch):
+        self.model_meta_train()
+        file_name = self.args.loadFilename + "_" + "{}".format(epoch) + ".krs"
+        self.log.info("KERAS - Loading Trained %s Model in File: %s", self.model_name(), file_name)
+        model = load_model(file_name)
+        return model
+
+    def input_probability(self, data):
+        logc_prob = self.logc.model.predict_proba(data.input_data()["DRAGON"])
+        nbc_prob = self.nbc.model.predict_proba(data.input_data()["MORGAN2048_4"])
+        dnn_dragon_prob = self.dnn_dragon.model.predict_proba(data.input_data()["DRAGON"])
+        dnn_dragon_prob = np.asarray(dnn_dragon_prob)
+        dnn_m1_prob = self.dnn_morgan1.model.predict_proba(data.input_data()["MORGAN2048_1"])
+        dnn_m1_prob = np.asarray(dnn_m1_prob)
+        dnn_m5_prob = self.dnn_morgan5.model.predict_proba(data.input_data()["MORGAN2048_5"])
+        dnn_m5_prob = np.asarray(dnn_m5_prob)
+        dnn_top_prob = self.dnn_top.model.predict_proba(data.input_data()["TOPOLOGICAL2048"])
+        dnn_top_prob = np.asarray(dnn_top_prob)
+        dnn_macc_prob = self.dnn_macc.model.predict_proba(data.input_data()["MACCFP"])
+        dnn_macc_prob = np.asarray(dnn_macc_prob)
+
+        prob = np.concatenate((dnn_dragon_prob, dnn_top_prob),axis=1)
+
+        #        prob = np.concatenate((dnn_macc_prob, dnn_dragon_prob, dnn_m1_prob, dnn_m5_prob, dnn_top_prob),axis=1)
+        return prob

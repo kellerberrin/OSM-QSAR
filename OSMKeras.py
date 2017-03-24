@@ -440,6 +440,7 @@ class KlassIonMorgan(with_metaclass(ModelMetaClass, KlassSequential)):
         return "ion_m"
 
     def model_description(self):
+
         return ("A KERAS (TensorFlow) multi-layer Neural Network class classification model. \n"
                 "This classifier analyzes the MORGAN2048_n, TOPOLOGICAL2048  fingerprints against ION_ACTIVITY")
 

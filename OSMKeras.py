@@ -43,7 +43,7 @@ from keras.constraints import maxnorm
 from keras.optimizers import SGD, Adam, Adagrad, Adadelta
 from keras.utils import np_utils
 
-from keras.utils.visualize_util import plot
+#from keras.utils.visualize_util import plot
 import keras.backend as backend
 
 from OSMBase import ModelMetaClass  # The virtual model class.
@@ -449,7 +449,7 @@ class KlassIonMorgan(with_metaclass(ModelMetaClass, KlassSequential)):
 
         adam = Adam(lr=0.0001, beta_1=0.9, beta_2=0.999, epsilon=1e-09)
 
-        model.add(Dense(2048, input_dim=167, init="uniform", activation="relu", W_constraint=maxnorm(3)))
+        model.add(Dense(2048, input_dim=2048, init="uniform", activation="relu", W_constraint=maxnorm(3)))
         model.add(Dropout(0.2))
         model.add(BatchNormalization())
         model.add(Dense(32, init="uniform", activation="relu", W_constraint=maxnorm(3)))

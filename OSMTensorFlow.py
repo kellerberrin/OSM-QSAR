@@ -499,6 +499,8 @@ class DNN_MV_Classifier(with_metaclass(ModelMetaClass, TensorFlowClassifier)):
         #        x_data = np.concatenate((data.input_data()["DRAGON"], data.input_data()["MORGAN2048_5"],
 #            data.input_data()["MORGAN2048_1"],data.input_data()["TOPOLOGICAL2048"],data.input_data()["MACCFP"]), axis=1)
         input_x_tensor = tf.constant(data.input_data()["DRAGON"])
+#        x_data = np.concatenate((data.input_data()["DRAGON"], data.input_data()["MACCFP"]), axis=1)
+#        input_x_tensor = tf.constant(x_data)
         return input_x_tensor, input_y_tensor
 
 

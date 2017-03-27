@@ -401,22 +401,34 @@ class KlassIonMaccs(with_metaclass(ModelMetaClass, KlassSequential)):
     def model_define(self):  # Defines the modified sequential class with regularizers defined.
 
         model = Sequential()
+        l2_param = 0.0
+        l1_param = 0.0
+        dropout_param = 0.0
 
-        adam = Adam(lr=0.0001, beta_1=0.9, beta_2=0.999, epsilon=1e-09)
+        adam = Adam(lr=0.0005, beta_1=0.9, beta_2=0.999, epsilon=5e-09)
 
-        model.add(Dense(2048, input_dim=167, init="uniform", activation="tanh", W_constraint=maxnorm(3)))
-        model.add(Dropout(0.2))
+        model.add(Dense(2048, input_dim=167, init="uniform", activation="relu"
+                        , activity_regularizer=l1l2(l1_param, l2_param), W_constraint=maxnorm(3)))
+        model.add(Dropout(dropout_param))
         model.add(BatchNormalization())
-        model.add(Dense(32, init="uniform", activation="tanh", W_constraint=maxnorm(3)))
-        model.add(Dropout(0.2))
+        model.add(Dense(2048, init="uniform", activation="relu"
+                        , activity_regularizer=l1l2(l1_param,l2_param), W_constraint=maxnorm(3)))
+        model.add(Dropout(dropout_param))
         model.add(BatchNormalization())
-        model.add(Dense(8, init="uniform", activation="tanh", W_constraint=maxnorm(3)))
-        model.add(Dropout(0.3))
+        model.add(Dense(512, init="uniform", activation="relu"
+                        , activity_regularizer=l1l2(l1_param, l2_param), W_constraint=maxnorm(3)))
+        model.add(Dropout(dropout_param))
+        model.add(BatchNormalization())
+        model.add(Dense(64, init="uniform", activation="relu"
+                        , activity_regularizer=l1l2(l1_param, l2_param), W_constraint=maxnorm(3)))
+
+        model.add(Dropout(dropout_param))
         model.add(BatchNormalization())
         model.add(Dense(3, activation = "softmax", init="normal"))
         model.compile(loss="categorical_crossentropy", optimizer=adam, metrics=["accuracy"])
 
         return model
+
 
     # ===============================================================================
     # Keras Pattern Classifier, fits ION ACTIVITY to MORGAN2048_4
@@ -447,19 +459,30 @@ class KlassIonMorgan(with_metaclass(ModelMetaClass, KlassSequential)):
     def model_define(self):  # Defines the modified sequential class with regularizers defined.
 
         model = Sequential()
+        l2_param = 0.0
+        l1_param = 0.0
+        dropout_param = 0.0
 
-        adam = Adam(lr=0.0001, beta_1=0.9, beta_2=0.999, epsilon=1e-09)
+        adam = Adam(lr=0.0005, beta_1=0.9, beta_2=0.999, epsilon=5e-09)
 
-        model.add(Dense(2048, input_dim=2048, init="uniform", activation="relu", W_constraint=maxnorm(3)))
-        model.add(Dropout(0.2))
+        model.add(Dense(2048, input_dim=2048, init="uniform", activation="relu"
+                        , activity_regularizer=l1l2(l1_param, l2_param), W_constraint=maxnorm(3)))
+        model.add(Dropout(dropout_param))
         model.add(BatchNormalization())
-        model.add(Dense(32, init="uniform", activation="relu", W_constraint=maxnorm(3)))
-        model.add(Dropout(0.2))
+        model.add(Dense(2048, init="uniform", activation="relu"
+                        , activity_regularizer=l1l2(l1_param,l2_param), W_constraint=maxnorm(3)))
+        model.add(Dropout(dropout_param))
         model.add(BatchNormalization())
-        model.add(Dense(8, init="uniform", activation="relu", W_constraint=maxnorm(3)))
-        model.add(Dropout(0.3))
+        model.add(Dense(512, init="uniform", activation="relu"
+                        , activity_regularizer=l1l2(l1_param, l2_param), W_constraint=maxnorm(3)))
+        model.add(Dropout(dropout_param))
         model.add(BatchNormalization())
-        model.add(Dense(3, activation="softmax", init="normal"))
+        model.add(Dense(64, init="uniform", activation="relu"
+                        , activity_regularizer=l1l2(l1_param, l2_param), W_constraint=maxnorm(3)))
+
+        model.add(Dropout(dropout_param))
+        model.add(BatchNormalization())
+        model.add(Dense(3, activation = "softmax", init="normal"))
         model.compile(loss="categorical_crossentropy", optimizer=adam, metrics=["accuracy"])
 
         return model
@@ -521,6 +544,63 @@ class KlassIonDragon(with_metaclass(ModelMetaClass, KlassSequential)):
         return model
 
 # ===============================================================================
+# Keras Pattern Classifier, fits ION ACTIVITY to MORGAN2048_4
+# ===============================================================================
+
+class KlassBinaryMaccs(with_metaclass(ModelMetaClass, KlassSequential)):
+    def __init__(self, args, log):
+        super(KlassBinaryMaccs, self).__init__(args, log)
+
+        # Define the model data view.
+        # Define the model variable types here. Documented in "OSMModelData.py".
+        self.arguments = {"DEPENDENT": {"VARIABLE": "EC50_500", "SHAPE": [2], "TYPE": OSMModelData.CLASSES}
+            , "INDEPENDENT": [{"VARIABLE": "MACCFP", "SHAPE": [167], "TYPE": OSMModelData.FLOAT64}]}
+
+    # These functions need to be re-defined in all classifier model classes.
+
+    def model_name(self):
+        return "MACCS > BINARY CLASS (EC50) Classifier"
+
+    def model_postfix(self):  # Must be unique for each model.
+        return "bin_macc"
+
+    def model_description(self):
+        return ("A KERAS (TensorFlow) multi-layer Neural Network class classification model. \n"
+                "This classifier analyzes the MACCS fingerprint against binary classes (EC50)")
+
+    def model_define(self):  # Defines the modified sequential class with regularizers defined.
+
+        model = Sequential()
+        l2_param = 0.0
+        l1_param = 0.0
+        dropout_param = 0.0
+
+        adam = Adam(lr=0.0005, beta_1=0.9, beta_2=0.999, epsilon=5e-09)
+
+        model.add(Dense(2048, input_dim=167, init="uniform", activation="relu"
+                        , activity_regularizer=l1l2(l1_param, l2_param), W_constraint=maxnorm(3)))
+        model.add(Dropout(dropout_param))
+        model.add(BatchNormalization())
+        model.add(Dense(2048, init="uniform", activation="relu"
+                        , activity_regularizer=l1l2(l1_param, l2_param), W_constraint=maxnorm(3)))
+        model.add(Dropout(dropout_param))
+        model.add(BatchNormalization())
+        model.add(Dense(512, init="uniform", activation="relu"
+                        , activity_regularizer=l1l2(l1_param, l2_param), W_constraint=maxnorm(3)))
+        model.add(Dropout(dropout_param))
+        model.add(BatchNormalization())
+        model.add(Dense(64, init="uniform", activation="relu"
+                        , activity_regularizer=l1l2(l1_param, l2_param), W_constraint=maxnorm(3)))
+
+        model.add(Dropout(dropout_param))
+        model.add(BatchNormalization())
+        model.add(Dense(2, activation="softmax", init="normal"))
+        model.compile(loss="categorical_crossentropy", optimizer=adam, metrics=["accuracy"])
+
+        return model
+
+
+# ===============================================================================
 # Keras Pattern Classifier, fits Binary Classes to MORGAN2048_4
 # ===============================================================================
 
@@ -536,7 +616,7 @@ class KlassBinaryMorgan(with_metaclass(ModelMetaClass, KlassSequential)):
     # These functions need to be re-defined in all classifier model classes.
 
     def model_name(self):
-        return "MORGAN > EC50_500 (Any Binary Class) Classifier"
+        return "MORGAN > Binary Class (EC50) Classifier"
 
     def model_postfix(self):  # Must be unique for each model.
         return "bin_m"
@@ -547,19 +627,33 @@ class KlassBinaryMorgan(with_metaclass(ModelMetaClass, KlassSequential)):
 
     def model_define(self):  # Defines the modified sequential class with regularizers defined.
 
-        model = Sequential()
 
-        model.add(Dense(2048, input_dim=2048, init="uniform", activation="relu", W_constraint=maxnorm(3)))
-        model.add(Dropout(0.2))
+        model = Sequential()
+        l2_param = 0.0
+        l1_param = 0.0
+        dropout_param = 0.0
+
+        adam = Adam(lr=0.0005, beta_1=0.9, beta_2=0.999, epsilon=5e-09)
+
+        model.add(Dense(2048, input_dim=2048, init="uniform", activation="relu"
+                        , activity_regularizer=l1l2(l1_param, l2_param), W_constraint=maxnorm(3)))
+        model.add(Dropout(dropout_param))
         model.add(BatchNormalization())
-        model.add(Dense(32, init="uniform", activation="relu", W_constraint=maxnorm(3)))
-        model.add(Dropout(0.2))
+        model.add(Dense(2048, init="uniform", activation="relu"
+                        , activity_regularizer=l1l2(l1_param,l2_param), W_constraint=maxnorm(3)))
+        model.add(Dropout(dropout_param))
         model.add(BatchNormalization())
-        model.add(Dense(8, init="uniform", activation="relu", W_constraint=maxnorm(3)))
-        model.add(Dropout(0.3))
+        model.add(Dense(512, init="uniform", activation="relu"
+                        , activity_regularizer=l1l2(l1_param, l2_param), W_constraint=maxnorm(3)))
+        model.add(Dropout(dropout_param))
+        model.add(BatchNormalization())
+        model.add(Dense(64, init="uniform", activation="relu"
+                        , activity_regularizer=l1l2(l1_param, l2_param), W_constraint=maxnorm(3)))
+
+        model.add(Dropout(dropout_param))
         model.add(BatchNormalization())
         model.add(Dense(2, activation = "softmax", init="normal"))
-        model.compile(loss="categorical_crossentropy", optimizer="Adam", metrics=["accuracy"])
+        model.compile(loss="categorical_crossentropy", optimizer=adam, metrics=["accuracy"])
 
         return model
 
@@ -580,7 +674,7 @@ class KlassBinaryDragon(with_metaclass(ModelMetaClass, KlassSequential)):
     # These functions need to be re-defined in all classifier model classes.
 
     def model_name(self):
-        return "DRAGON > EC50_500 (Any Binary Class) Classifier"
+        return "DRAGON > Any Binary Class (EC50) Classifier"
 
     def model_postfix(self):  # Must be unique for each model.
         return "bin_d"
@@ -592,25 +686,33 @@ class KlassBinaryDragon(with_metaclass(ModelMetaClass, KlassSequential)):
     def model_define(self):  # Defines the modified sequential class with regularizers defined.
 
         model = Sequential()
+        l2_param = 0.0
+        l1_param = 0.0
+        dropout_param = 0.0
 
+        adam = Adam(lr=0.0005, beta_1=0.9, beta_2=0.999, epsilon=5e-09)
 
-        model.add(Dense(2048, input_dim=1666, init="uniform", activation="relu", W_constraint=maxnorm(3)))
-        model.add(Dropout(0.2))
+        model.add(Dense(2048, input_dim=1666, init="uniform", activation="relu"
+                        , activity_regularizer=l1l2(l1_param, l2_param), W_constraint=maxnorm(3)))
+        model.add(Dropout(dropout_param))
         model.add(BatchNormalization())
-        model.add(Dense(64, init="uniform", activation="relu", W_constraint=maxnorm(3)))
-        model.add(Dropout(0.3))
+        model.add(Dense(2048, init="uniform", activation="relu"
+                        , activity_regularizer=l1l2(l1_param,l2_param), W_constraint=maxnorm(3)))
+        model.add(Dropout(dropout_param))
         model.add(BatchNormalization())
-        model.add(Dense(64, init="uniform", activation="relu", W_constraint=maxnorm(3)))
-        model.add(Dropout(0.3))
+        model.add(Dense(512, init="uniform", activation="relu"
+                        , activity_regularizer=l1l2(l1_param, l2_param), W_constraint=maxnorm(3)))
+        model.add(Dropout(dropout_param))
         model.add(BatchNormalization())
-        model.add(Dense(16, init="uniform", activation="relu", W_constraint=maxnorm(3)))
-        model.add(Dropout(0.3))
+        model.add(Dense(64, init="uniform", activation="relu"
+                        , activity_regularizer=l1l2(l1_param, l2_param), W_constraint=maxnorm(3)))
+
+        model.add(Dropout(dropout_param))
         model.add(BatchNormalization())
         model.add(Dense(2, activation = "softmax", init="normal"))
-        model.compile(loss="categorical_crossentropy", optimizer="Adam", metrics=["accuracy"])
+        model.compile(loss="categorical_crossentropy", optimizer=adam, metrics=["accuracy"])
 
         return model
-
 
 
 # ===============================================================================

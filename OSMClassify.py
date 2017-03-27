@@ -49,6 +49,11 @@ class OSMClassification(OSMBaseModel):
         self.log = log
         self.args = args
 
+        # Maintain a vector of statistics
+
+        self.test_statistics_history = []
+        self.train_statistics_history = []
+
     #####################################################################################
     #
     # Virtual member functions called from OSMBase
@@ -64,11 +69,14 @@ class OSMClassification(OSMBaseModel):
         self.train_probability = self.model_probability(self.data.training())  # Returns a dict. with "probability"
         self.train_objective = self.model_evaluate(self.data.training())
         self.train_stats = self.model_accuracy(self.train_predictions, self.train_probability)  # dictionary of stats
+        self.train_statistics_history.append(self.train_stats)
 
         self.test_predictions = self.model_prediction(self.data.testing())  # Returns a dict. with "prediction" and "actual"
         self.test_probability = self.model_probability(self.data.testing())  # Returns a dict. with "probability"
         self.test_objective = self.model_evaluate(self.data.testing())
         self.test_stats = self.model_accuracy(self.test_predictions, self.test_probability)  # dictionary of stats
+        self.test_statistics_history.append(self.test_stats)
+
         # Send statistics to the console and log file.
         self.model_log_statistics()
         # Generate graphics (only if the virtual function defined at model level).
@@ -102,6 +110,10 @@ class OSMClassification(OSMBaseModel):
                               self.test_objective,
                               self.args.testDirectory)
 
+    def model_training_summary(self):
+        self.write_training_statistics(self.train_statistics_history,self.args.trainDirectory)
+        self.write_training_statistics(self.test_statistics_history,self.args.testDirectory)
+
     def model_accuracy(self, predictions, probability):
 
         classes = self.model_enumerate_classes()
@@ -133,10 +145,13 @@ class OSMClassification(OSMBaseModel):
 
         confusion = confusion_matrix(actual_text, predict_text)
 
+        epoch = self.model_epochs()
+
         # Return the model analysis statistics in a dictionary.
         return {"classes": classes, "actual_one_hot": actual_one_hot, "predict_one_host": predict_one_hot
                , "prob_rank": probability_ranks, "actual_text": actual_text, "predict_text": predict_text
-               , "confusion" : confusion, "class_auc": mod_class_auc, "macro_auc": macro_auc, "micro_auc": micro_auc}
+               , "confusion" : confusion, "class_auc": mod_class_auc, "macro_auc": macro_auc
+               , "micro_auc": micro_auc, "epoch": epoch }
 
 
     def model_prediction_records(self, data, statistics, predictions, probabilities):
@@ -289,6 +304,27 @@ class OSMClassification(OSMBaseModel):
 
                     line += ", {}\n".format(record[4])
 
+                    stats_file.write(line)
+
+        except IOError:
+            self.log.error("Problem writing to statistics file %s, check path and permissions", stats_filename)
+
+    def write_training_statistics(self, statistics_vector, directory):
+
+        stats_filename = os.path.join(directory, self.args.statsFilename)
+
+        try:
+
+            with open(stats_filename, 'a') as stats_file:
+
+
+                line = "++++++++++++++++++,Training_Summary,+++++++++++++++++++\n"
+                stats_file.write(line)
+
+                for statistics in statistics_vector:
+                    micro_AUC = statistics["micro_auc"]
+                    epoch = statistics["epoch"]
+                    line = "epoch, {}, micro AUC, {}\n".format(epoch, micro_AUC)
                     stats_file.write(line)
 
         except IOError:

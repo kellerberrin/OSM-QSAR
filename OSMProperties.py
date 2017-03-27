@@ -93,6 +93,7 @@ class OSMGenerateData(object):
         morgan_2048_3 = lambda x: AllChem.GetMorganFingerprintAsBitVect(x, 3, nBits=2048)
         morgan_2048_4 = lambda x: AllChem.GetMorganFingerprintAsBitVect(x, 4, nBits=2048)
         morgan_2048_5 = lambda x: AllChem.GetMorganFingerprintAsBitVect(x, 5, nBits=2048)
+        morgan_2048_6 = lambda x: AllChem.GetMorganFingerprintAsBitVect(x, 6, nBits=2048)
         topological_2048 = lambda x: AllChem.GetHashedTopologicalTorsionFingerprintAsBitVect(x)
         macc = lambda x: AllChem.GetMACCSKeysFingerprint(x)
 
@@ -102,6 +103,7 @@ class OSMGenerateData(object):
         self.add_bitvect_fingerprint(self.data, morgan_2048_3, "MORGAN2048_3")
         self.add_bitvect_fingerprint(self.data, morgan_2048_4, "MORGAN2048_4")
         self.add_bitvect_fingerprint(self.data, morgan_2048_5, "MORGAN2048_5")
+        self.add_bitvect_fingerprint(self.data, morgan_2048_6, "MORGAN2048_6")
         self.add_bitvect_fingerprint(self.data, topological_2048, "TOPOLOGICAL2048")
         self.add_bitvect_fingerprint(self.data, macc, "MACCFP")
 

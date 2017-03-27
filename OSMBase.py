@@ -124,6 +124,7 @@ class OSMBaseModel(object):
         self.model_train()
         self.log.info("End Training %s Model", self.model_name())
         self.model_classification_results()
+        self.model_training_summary()
 
     def create_model(self):
         if self.args.loadFilename != "noload":
@@ -159,3 +160,5 @@ class OSMBaseModel(object):
     def model_epochs(self): return 0
 
     def model_evaluate(self, data): return []
+
+    def model_training_summary(self): pass

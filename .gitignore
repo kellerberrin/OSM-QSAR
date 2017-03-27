@@ -1,3 +1,9 @@
+# OSM_QSAR ignored directories.
+/DNN
+/Work
+/Code\ Offcuts
+/chEMBL
+/Related\ Papers\ Info
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

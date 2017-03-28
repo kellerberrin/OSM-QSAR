@@ -32,7 +32,8 @@ import time
 
 # Import the various model objects
 from OSMBase import get_model_instances
-import OSMKeras
+import OSMKerasClassify
+import OSMKerasMeta
 import OSMTemplate
 import OSMSKLearnRegress
 import OSMSKLearnClassify

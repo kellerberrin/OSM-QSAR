@@ -27,6 +27,7 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 import sys
 import numpy as np
 import pandas as pd
+from math import log10
 
 from sklearn.decomposition import PCA, KernelPCA
 
@@ -85,6 +86,59 @@ class OSMGenerateData(object):
     def generate_fields(self):
 
         self.log.info("Calculating QSAR fields, may take a few moments....")
+        # Add the finger print columns
+        self.generate_fingerprints()
+        # Add the potency classes
+        self.generate_potency_class(200)
+        self.generate_potency_class(500)
+        self.generate_potency_class(1000)
+        # Add pEC50
+        self.generate_pEC50()
+        # ION_ACTIVE class reduces ION_ACTIVITY to 2 classes ["ACTIVE", "INACTIVE"]
+        self.generate_ion_active()
+
+    def generate_potency_class(self, nMol):
+
+        column_name = "EC50_{}".format(int(nMol))
+        EC50 = self.data["EC50"]
+        potency_class = []
+        for ec50 in EC50:
+            if pd.isnull(ec50) or ec50 <= 0:
+                potency_class.append(ec50)
+            else:
+                klass = "ACTIVE" if ec50 * 1000 <= nMol else "INACTIVE"
+                potency_class.append(klass)
+        self.data[column_name] = pd.Series(potency_class, index=self.data.index)
+
+    def generate_pEC50(self):
+
+        column_name = "pEC50"
+        EC50 = self.data["EC50"]
+        pEC50_list = []
+        for ec50 in EC50:
+            if pd.isnull(ec50) or ec50 <= 0:
+                pEC50_list.append(ec50)
+            else:
+                pEC50_list.append(log10(ec50))
+        self.data[column_name] = pd.Series(pEC50_list, index=self.data.index)
+
+
+    def generate_ion_active(self):
+
+        column_name = "ION_ACTIVE"
+        ion_activity = self.data["ION_ACTIVITY"]
+        ion_active = []
+        for ion in ion_activity:
+            if pd.isnull(ion):
+                ion_active.append(np.NaN)
+            else:
+                klass = "ACTIVE" if ion == "ACTIVE" else "INACTIVE"
+                if klass != ion:
+                    print("klass", klass, "ion", ion)
+                ion_active.append(klass)
+        self.data[column_name] = pd.Series(ion_active, index=self.data.index)
+
+    def generate_fingerprints(self):
 
         # Add the finger print columns
         morgan_1024 = lambda x: AllChem.GetMorganFingerprintAsBitVect(x, 4, nBits=1024)
@@ -106,7 +160,6 @@ class OSMGenerateData(object):
         self.add_bitvect_fingerprint(self.data, morgan_2048_6, "MORGAN2048_6")
         self.add_bitvect_fingerprint(self.data, topological_2048, "TOPOLOGICAL2048")
         self.add_bitvect_fingerprint(self.data, macc, "MACCFP")
-
 
     # Read the Dragon data as a pandas object with 2 fields, [SMILE, np.ndarray] and join (merge)
     # on "SMILE" with the OSMData data.
@@ -131,17 +184,6 @@ class OSMGenerateData(object):
             for missing in missing_list:
                 self.log.warning("Dropped molecule ID: %s after join with DRAGON data", missing)
 
-            pca = PCA(n_components=10)
-            pca.fit(narray_list)
-            pca_array = pca.transform(narray_list)
-            pca_list = [ x for x in pca_array]
-#            self.data["DRAGON_PCA"] = pd.Series(pca_list, index=data_frame.index)
-
-            kpca = KernelPCA(n_components=10, kernel="rbf")
-            kpca.fit(narray_list)
-            kpca_array = kpca.transform(narray_list)
-            kpca_list = [ x for x in kpca_array]
-
         except IOError:
             self.log.error('Problem reading EDragon file %s, Check "--data", ""--dir" and --help" flags.', file_name)
             sys.exit()
@@ -154,7 +196,7 @@ class OSMGenerateData(object):
     def read_csv(self, file_name):
 
         self.log.info("Loading data file: %s ...", file_name)
-        mandatory_fields = ["pIC50", "SMILE", "ID", "CLASS"]
+        mandatory_fields = ["EC50", "SMILE", "ID", "CLASS", "ION_ACTIVITY"]
 
         try:
 

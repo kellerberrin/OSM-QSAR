@@ -416,7 +416,7 @@ class DNN_MV_Classifier(with_metaclass(ModelMetaClass, TensorFlowClassifier)):
 
         # define the model data view.
         # Define the model variable types here. Documented in "OSMModelData.py".
-        self.arguments = { "DEPENDENT" : { "VARIABLE" : "ION_ACTIVITY", "SHAPE" : [3], "TYPE": OSMModelData.CLASSES }
+        self.arguments = { "DEPENDENT" : { "VARIABLE" : "ION_ACTIVITY", "SHAPE" : [2], "TYPE": OSMModelData.CLASSES }
                     , "INDEPENDENT" : [ { "VARIABLE" : "DRAGON", "SHAPE": [1666], "TYPE": OSMModelData.FLOAT64 }
                                     , { "VARIABLE" : "MORGAN2048_5", "SHAPE": [2048], "TYPE": OSMModelData.FLOAT64 }
                                     , {"VARIABLE": "MORGAN2048_1", "SHAPE": [2048], "TYPE": OSMModelData.FLOAT64}
@@ -440,11 +440,11 @@ class DNN_MV_Classifier(with_metaclass(ModelMetaClass, TensorFlowClassifier)):
 
     def model_define_directory(self, directory):
         # Specify that all features have real-value data
-        feature_columns = [tf.contrib.layers.real_valued_column("", dimension=(1666))]
+        feature_columns = [tf.contrib.layers.real_valued_column("", dimension=(1666+2048))]
         # Build 3 layer DNN.
         model = tf.contrib.learn.DNNClassifier(feature_columns=feature_columns,
-                                               hidden_units=[2048, 2048, 16],
-                                               n_classes=3,
+                                               hidden_units=[2048, 2048, 512, 64, 2],
+                                               n_classes=2,
                                                model_dir = directory)
         return model
 
@@ -498,9 +498,10 @@ class DNN_MV_Classifier(with_metaclass(ModelMetaClass, TensorFlowClassifier)):
         input_y_tensor = tf.constant(class_idx_list)
         #        x_data = np.concatenate((data.input_data()["DRAGON"], data.input_data()["MORGAN2048_5"],
 #            data.input_data()["MORGAN2048_1"],data.input_data()["TOPOLOGICAL2048"],data.input_data()["MACCFP"]), axis=1)
-        input_x_tensor = tf.constant(data.input_data()["DRAGON"])
+        x_data = np.concatenate((data.input_data()["DRAGON"], data.input_data()["MORGAN2048_5"]), axis =1)
+#        input_x_tensor = tf.constant(data.input_data()["DRAGON"])
 #        x_data = np.concatenate((data.input_data()["DRAGON"], data.input_data()["MACCFP"]), axis=1)
-#        input_x_tensor = tf.constant(x_data)
+        input_x_tensor = tf.constant(x_data)
         return input_x_tensor, input_y_tensor
 
 

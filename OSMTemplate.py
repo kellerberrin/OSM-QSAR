@@ -40,8 +40,8 @@ class OSMRegressionTemplate(with_metaclass(ModelMetaClass, OSMRegression)):  # E
         super(OSMRegressionTemplate, self).__init__(args, log)  # Edit this and change the class name.
 
         # Define the model variable types here. Documented in "OSMModelData.py".
-        self.arguments = { "DEPENDENT" : { "VARIABLE" : "IC50", "SHAPE" : [1], "TYPE": OSMModelData.FLOAT64 }
-                         , "INDEPENDENT" : [ { "VARIABLE" : "IC50", "SHAPE": None, "TYPE": None } ] }
+        self.arguments = { "DEPENDENT" : { "VARIABLE" : "EC50", "SHAPE" : [1], "TYPE": OSMModelData.FLOAT64 }
+                         , "INDEPENDENT" : [ { "VARIABLE" : "EC50", "SHAPE": None, "TYPE": None } ] }
 
     # These functions need to be re-defined in all classifier model classes.
 

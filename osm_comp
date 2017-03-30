@@ -1,0 +1,15 @@
+#!/bin/bash
+# 
+# This bash script executes the python code to classify molecules for the
+# OSM competition
+# The flags are:
+#
+# --classify osm - select the osm model for the classification
+# --load ION_META - load the pre-trained Neural Net "ION_META_40.krs"
+# --epoch 40  - second part of the load that specifies that the NN has been trained "40" epochs.
+# --train 0 - do not train the NN further, just display the results of the classification.
+# the results of the classification are found in directories "./Work/osm/test" and "./Work/osm/train"
+# --clean - (optional) delete any files in the "./Work/osm/test" and "./Work/osm/train" directories
+# before classification. Otherwise the results are appended to any previous results.
+
+python OSM_QSAR.py --classify osm --load ION_META --epoch 40 --train 0 --clean

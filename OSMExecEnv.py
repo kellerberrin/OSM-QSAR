@@ -65,8 +65,6 @@ class ExecEnv(object):
         console_log_format = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
         ExecEnv.log = self.setup_logging(console_log_format)
 
-
-
         # Parse the runtime args
         parser = argparse.ArgumentParser(
             description="OSM_QSAR. Classification of OSM ligands using machine learning techniques.")
@@ -383,4 +381,3 @@ class ExecEnv(object):
             sys.exit()
 
         ExecEnv.args.indepList = var_list
-

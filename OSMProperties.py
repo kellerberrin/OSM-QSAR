@@ -133,8 +133,6 @@ class OSMGenerateData(object):
                 ion_active.append(np.NaN)
             else:
                 klass = "ACTIVE" if ion == "ACTIVE" else "INACTIVE"
-                if klass != ion:
-                    print("klass", klass, "ion", ion)
                 ion_active.append(klass)
         self.data[column_name] = pd.Series(ion_active, index=self.data.index)
 

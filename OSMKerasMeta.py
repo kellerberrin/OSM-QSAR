@@ -47,22 +47,15 @@ from keras.utils import np_utils
 import keras.backend as backend
 
 from OSMBase import ModelMetaClass  # The virtual model class.
-from OSMRegression import OSMRegression  # Display and save regression results.
-from OSMClassify import OSMClassification
-from OSMKerasBase import KerasClassifier, KlassSequential
-from OSMKerasClassify import KlassBinaryDragon, KlassBinaryMaccs, KlassBinaryMorgan
+from OSMKerasBase import KerasClassifier
+from OSMKerasClassify import KlassBinaryDragon, KlassBinaryMorgan
 from OSMKerasClassify import KlassIonDragon, KlassIonMaccs, KlassIonMorgan
-from OSMGraphics import OSMSimilarityMap
 from OSMModelData import OSMModelData
-from OSMIterative import OSMIterative
-from OSMGraphics import OSMDragonMap
 from OSMSKLearnClassify import OSMSKLearnLOGC, OSMSKLearnNBC  # All The SKLearn Classifiers for the meta NN
 
-
 # ================================================================================================
-# A meta Pattern Classifier, everything and the kitchen sink, used for model development
+# A meta pattern classifier, everything and the kitchen sink, used for model development.
 # ================================================================================================
-
 
 class MetaSequential(with_metaclass(ModelMetaClass, KerasClassifier)):
     def __init__(self, args, log):

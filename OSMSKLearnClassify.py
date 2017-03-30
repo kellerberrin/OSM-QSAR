@@ -24,6 +24,7 @@
 # Python 2 and Python 3 compatibility imports.
 from __future__ import absolute_import, division, print_function, unicode_literals
 from six import with_metaclass
+import copy
 
 import os
 import sys
@@ -49,6 +50,7 @@ from OSMBase import ModelMetaClass  # The virtual model class.
 from OSMClassify import OSMClassification  # Display and save classifier results.
 from OSMModelData import OSMModelData  # specify variable types.
 from OSMGraphics import OSMSimilarityMap
+from OSMKerasClassify import KlassIonDragon
 
 # A grab-bag of ML techniques implemented in SKLearn.
 
@@ -270,4 +272,122 @@ class OSMSKLearnLOGC(with_metaclass(ModelMetaClass, OSMSKLearnClassifier)):
 
     def model_define(self):
         return LogisticRegression(penalty='l2', dual=False, tol=0.0001, C=1.0)
+
+
+# ================================================================================================
+# The Final prediction model used in the OSM competition.
+# ================================================================================================
+
+class OSMSKLearnMeta(with_metaclass(ModelMetaClass, OSMSKLearnClassifier)):
+    def __init__(self, args, log):
+        super(OSMSKLearnMeta, self).__init__(args, log)
+
+        # Define the model data view.
+        # Define the model variable types here. Documented in "OSMModelData.py".
+        self.arguments = {"DEPENDENT": {"VARIABLE": "ION_ACTIVE", "SHAPE": [2], "TYPE": OSMModelData.CLASSES}
+            , "INDEPENDENT": [{"VARIABLE": "DRAGON", "SHAPE": [1666], "TYPE": OSMModelData.FLOAT64},
+                              {"VARIABLE": "MORGAN2048_5", "SHAPE": [2048], "TYPE": OSMModelData.FLOAT64} ]}
+
+        self.model_define_meta(args, log)
+
+    def model_define_meta(self, args, log):
+
+        ion_d_args = copy.deepcopy(args)  # ensure that args cannot be side-swiped.
+        ion_d_args.indepList = ["DRAGON"]
+        ion_d_args.dependVar = "ION_ACTIVITY"
+        ion_d_args.train = 0
+        ion_d_args.epoch = 625
+        ion_d_args.loadFilename = os.path.join(ion_d_args.postfixDirectory, "ION_DRAGON")
+        self.dnn_dragon = KlassIonDragon(ion_d_args, log)
+
+        logc_args = copy.deepcopy(args)
+        logc_args.indepList = ["MORGAN2048_5"]
+        logc_args.dependVar = "EC50_500"
+        self.logc = OSMSKLearnLOGC(logc_args, log)
+
+    def model_meta_train(self):
+        self.logc.initialize(self.raw_data)
+        self.dnn_dragon.initialize(self.raw_data)
+
+    def model_name(self):
+        return "The OSM SKLearn Competition Classifier"
+
+    def model_postfix(self):  # Must be unique for each model.
+        return "osm_sk"
+
+    def model_description(self):
+        return (
+        "An SKLearn 'off-the-shelf' classification model takes probability functions as input. \n"
+        "This classifier model was developed for the OSM molecular ION Activity Competition.\n"
+        "It takes the input of an optimal NN that uses the DRAGON data to examine and classify molecular structure\n"
+        "and an SKLearn logistic classifier that estimates the molecular potency EC50 potency at 500nMol.\n"
+        "The probability maps of these classifiers and then optimally combined to estimate\n"
+        "molecular ion activity.")
+
+    def model_define(self):  # Defines the modified sequential class with regularizers defined.
+
+        self.model_meta_train()
+        return self.model_arch()
+
+    def model_arch(self):  # Defines the modified sequential class with regularizers defined.
+#        model = self.logc_model_define()
+        model = self.svmc_model_define()
+        return model
+
+    def logc_model_define(self):
+        return LogisticRegression(penalty='l2', dual=False, tol=0.0001, C=1.0)
+
+    def dtc_model_define(self):
+        return DecisionTreeClassifier(criterion='gini')
+
+    def knnc_model_define(self):
+        return KNeighborsClassifier(n_neighbors=5, weights="uniform", algorithm="auto")
+
+    def svmc_model_define(self):
+        return OneVsRestClassifier(svm.SVC(kernel=str("rbf"), probability=True, C=1e3, gamma=0.00001))
+
+    def nbc_model_define(self):
+                return GaussianNB()
+        #        return MultinomialNB(alpha=1.0, fit_prior=True, class_prior=None)
+        #return BernoulliNB(alpha=1.0, binarize=0.0, fit_prior=True, class_prior=None)
+
+    def rfc_model_define(self):
+        return RandomForestClassifier(n_estimators=10, criterion='gini')
+
+    def model_prediction(self, data):
+#        prediction = self.model.predict(self.input_probability(data))
+        classes = self.model_enumerate_classes()
+        probs = self.model_probability(data)
+        prob_list = probs["probability"]
+        class_list = []
+        for prob in prob_list:
+            if isinstance(prob, list):
+                class_list.append(classes[prob.index(max(prob))])
+            elif isinstance(prob, np.ndarray):
+                klass_index = np.where(prob == prob.max())
+                class_list.append(classes[klass_index[0][0]])
+            else :
+                klass = classes[0] if prob >= 0.5 else classes[1]
+                class_list.append(klass)
+
+        return {"prediction": class_list, "actual": data.target_data()}
+
+    def model_probability(self, data):  # probabilities are returned as a numpy.shape = (samples, classes)
+        prob = self.model.predict_proba(self.input_probability(data))
+        prob_list = list(prob)
+        return {"probability": prob_list}
+
+    def model_train(self):
+        self.model.fit(self.input_probability(self.data.training()), self.data.training().target_data())
+
+    def input_probability(self, data):
+
+        logc_prob = self.logc.model.predict_proba(data.input_data()["MORGAN2048_5"])
+
+        dnn_dragon_prob = self.dnn_dragon.model.predict_proba(data.input_data()["DRAGON"])
+        dnn_dragon_prob = np.asarray(dnn_dragon_prob)
+
+        prob = np.column_stack((dnn_dragon_prob[:, 0], logc_prob[:, 0]))
+
+        return prob
 

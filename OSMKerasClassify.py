@@ -47,14 +47,8 @@ from keras.utils import np_utils
 import keras.backend as backend
 
 from OSMBase import ModelMetaClass  # The virtual model class.
-from OSMKerasBase import KerasClassifier, KlassSequential
-from OSMRegression import OSMRegression  # Display and save regression results.
-from OSMClassify import OSMClassification
-from OSMGraphics import OSMSimilarityMap
+from OSMKerasBase import KlassSequential
 from OSMModelData import OSMModelData
-from OSMIterative import OSMIterative
-from OSMGraphics import OSMDragonMap
-from OSMSKLearnClassify import OSMSKLearnLOGC, OSMSKLearnNBC  # All The SKLearn Classifiers for the meta NN
 
 
 # ===============================================================================
@@ -73,7 +67,7 @@ class KlassIonMaccs(with_metaclass(ModelMetaClass, KlassSequential)):
     # These functions need to be re-defined in all classifier model classes.
 
     def model_name(self):
-        return "MORGAN > ION_ACTIVITY Classifier"
+        return "MACCS > ION_ACTIVITY Classifier"
 
     def model_postfix(self):  # Must be unique for each model.
         return "ion_macc"

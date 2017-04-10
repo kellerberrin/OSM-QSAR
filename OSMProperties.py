@@ -25,6 +25,7 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
 
 import sys
+import os
 import numpy as np
 import pandas as pd
 from math import log10
@@ -52,6 +53,7 @@ class OSMGenerateData(object):
         self.args = args
         self.data = self.read_csv(self.args.dataFilename)
         self.dragon = self.read_dragon(self.args.dragonFilename)
+        self.trunc_dragon = self.truncated_dragon("DragonFields.csv", 100)
 
         self.check_smiles(self.data)
 
@@ -69,7 +71,12 @@ class OSMGenerateData(object):
                 self.log.info(msg)
 
     def get_dragon_headers(self):
+        # Note this returns 1667 columns, the first column is a SMILE
         return list(self.dragon.columns.values)
+
+    def get_truncated_dragon_headers(self):
+        # Note this returns 1667 columns, the first column is a SMILE
+        return self.trunc_dragon
 
     def get_data(self):
         return self.data
@@ -189,6 +196,49 @@ class OSMGenerateData(object):
         self.log.info("Read %d records from file %s", data_frame.shape[0], file_name)
 
         return dragon_data_frame
+
+
+    def read_dragon_fields(self, file_name, cutoff):
+
+        path_name = os.path.join(self.args.workDirectory, file_name)
+
+        self.log.info("Loading EDragon Ranked Fields: %s ...", path_name)
+
+        try:
+
+            dragon_field_frame = pd.read_csv(path_name, low_memory=False)
+
+        except IOError:
+            self.log.error('Problem reading EDragon Field file %s', path_name)
+            sys.exit()
+
+        self.log.info("Read %d records from file %s", dragon_field_frame.shape[0], path_name)
+
+        cutoff_frame = dragon_field_frame.loc[dragon_field_frame["RANK"] <= cutoff]
+        cutoff_fields = cutoff_frame["FIELD"].tolist()
+
+        return cutoff_fields
+
+
+    def truncated_dragon(self, file_name, cutoff):
+
+        field_list = self.read_dragon_fields(file_name, cutoff)
+        new_frame = pd.DataFrame(self.dragon, columns=["SMILE"])
+        data_frame = pd.DataFrame(self.dragon, columns=field_list)
+        narray = data_frame.as_matrix(columns=None)
+        narray = narray.astype(np.float64)
+        narray_list = [ x for x in narray]
+        new_frame["TRUNC_DRAGON"] = pd.Series(narray_list, index=data_frame.index)
+        before_ids = list(self.data["ID"])
+        self.data = pd.merge(self.data, new_frame, how="inner", on=["SMILE"])
+        self.data = self.data.drop_duplicates(subset=["SMILE"], keep="first")
+        after_ids = list(self.data["ID"])
+        missing_list = list(set(before_ids) - set(after_ids))
+
+        for missing in missing_list:
+            self.log.warning("Dropped molecule ID: %s after join with TRUNC_DRAGON data", missing)
+
+        return field_list
 
     # Read CSV File into a pandas data frame
     def read_csv(self, file_name):

@@ -69,13 +69,13 @@ class OSMClassification(OSMBaseModel):
         self.train_probability = self.model_probability(self.data.training())  # Returns a dict. with "probability"
         self.train_objective = self.model_evaluate(self.data.training())
         self.train_stats = self.model_accuracy(self.train_predictions, self.train_probability)  # dictionary of stats
-        self.train_statistics_history.append(self.train_stats)
+        self.train_statistics_history.append({"STATISTICS": self.train_stats, "OBJECTIVE": self.train_objective})
 
         self.test_predictions = self.model_prediction(self.data.testing())  # Returns a dict. with "prediction" and "actual"
         self.test_probability = self.model_probability(self.data.testing())  # Returns a dict. with "probability"
         self.test_objective = self.model_evaluate(self.data.testing())
         self.test_stats = self.model_accuracy(self.test_predictions, self.test_probability)  # dictionary of stats
-        self.test_statistics_history.append(self.test_stats)
+        self.test_statistics_history.append({"STATISTICS": self.test_stats, "OBJECTIVE": self.test_objective})
 
         # Send statistics to the console and log file.
         self.model_log_statistics()
@@ -113,6 +113,7 @@ class OSMClassification(OSMBaseModel):
     def model_training_summary(self):
         self.write_training_statistics(self.train_statistics_history,self.args.trainDirectory)
         self.write_training_statistics(self.test_statistics_history,self.args.testDirectory)
+        self.write_model_analytics(self.model_analytics(), self.args.testDirectory)
 
     def model_accuracy(self, predictions, probability):
 
@@ -322,13 +323,47 @@ class OSMClassification(OSMBaseModel):
                 stats_file.write(line)
 
                 for statistics in statistics_vector:
-                    micro_AUC = statistics["micro_auc"]
-                    epoch = statistics["epoch"]
-                    line = "epoch, {}, micro AUC, {}\n".format(epoch, micro_AUC)
-                    stats_file.write(line)
+                    micro_AUC = statistics["STATISTICS"]["micro_auc"]
+                    macro_AUC = statistics["STATISTICS"]["macro_auc"]
+                    epoch = statistics["STATISTICS"]["epoch"]
+                    line = "epoch, {}, micro AUC, {}, macro AUC, {}".format(epoch, micro_AUC, macro_AUC)
+                    objective = statistics["OBJECTIVE"]
+                    for idx in range(len(objective)):
+                        line += ",Objective-{}, {}".format(idx, objective[idx])
+                    stats_file.write(line+"\n")
 
         except IOError:
             self.log.error("Problem writing to statistics file %s, check path and permissions", stats_filename)
+
+
+    def write_model_analytics(self, sensitivity_dict, directory):
+
+        if sensitivity_dict is None: return
+
+        if "SENSITIVITY" in sensitivity_dict:
+            self.write_analytic_type(directory, sensitivity_dict["SENSITIVITY"], "SENSITIVITY")
+
+        if "DERIVATIVE" in sensitivity_dict:
+            self.write_analytic_type(directory, sensitivity_dict["DERIVATIVE"], "DERIVATIVE")
+
+    def write_analytic_type(self, directory, sensitivity_vector, title):
+
+        stats_filename = os.path.join(directory, self.args.statsFilename)
+
+        try:
+
+            with open(stats_filename, 'a') as stats_file:
+
+
+                line = "++++++++++++++++++,{},+++++++++++++++++++\n".format(title)
+                stats_file.write(line)
+
+                for field_sens in sensitivity_vector:
+                    line = "field, {}, index, {}, sensitivity, {}\n".format(field_sens[0], field_sens[1], field_sens[2])
+                    stats_file.write(line)
+
+        except IOError:
+            self.log.error("Problem writing to sensitivity file %s, check path and permissions", stats_filename)
 
     def model_enumerate_classes(self):
 

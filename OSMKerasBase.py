@@ -52,7 +52,6 @@ from OSMGraphics import OSMSimilarityMap
 from OSMIterative import OSMIterative
 from OSMGraphics import OSMDragonMap
 
-
 # ===============================================================================
 # Base class for the Keras neural network classifiers.
 # ===============================================================================

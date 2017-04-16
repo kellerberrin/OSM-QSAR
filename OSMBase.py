@@ -163,4 +163,4 @@ class OSMBaseModel(object):
 
     def model_training_summary(self): pass
 
-    def model_analytics(self): return None
+    def model_analytics(self, data): return None

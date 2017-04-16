@@ -53,7 +53,9 @@ class OSMGenerateData(object):
         self.args = args
         self.data = self.read_csv(self.args.dataFilename)
         self.dragon = self.read_dragon(self.args.dragonFilename)
-        self.trunc_dragon = self.truncated_dragon("DragonFields.csv", 100)
+        self.dragon_fields = self.read_dragon_fields("DragonFields.csv")
+        self.dragon_truncation_rank = 100
+        self.trunc_dragon = self.truncated_dragon()
 
         self.check_smiles(self.data)
 
@@ -74,9 +76,18 @@ class OSMGenerateData(object):
         # Note this returns 1667 columns, the first column is a SMILE
         return list(self.dragon.columns.values)
 
+    def get_dragon_descriptions(self):
+        return self.dragon_fields["DESCRIPTION"].tolist()
+
     def get_truncated_dragon_headers(self):
-        # Note this returns 1667 columns, the first column is a SMILE
         return self.trunc_dragon
+
+    def get_truncated_dragon_fields(self):
+        return self.dragon_fields.loc[self.dragon_fields["RANK"] <= self.dragon_truncation_rank]
+
+    def get_truncated_dragon_descriptions(self):
+        trunc_frame = self.get_truncated_dragon_fields()
+        return trunc_frame["DESCRIPTION"].tolist()
 
     def get_data(self):
         return self.data
@@ -198,7 +209,7 @@ class OSMGenerateData(object):
         return dragon_data_frame
 
 
-    def read_dragon_fields(self, file_name, cutoff):
+    def read_dragon_fields(self, file_name):
 
         path_name = os.path.join(self.args.workDirectory, file_name)
 
@@ -214,15 +225,12 @@ class OSMGenerateData(object):
 
         self.log.info("Read %d records from file %s", dragon_field_frame.shape[0], path_name)
 
-        cutoff_frame = dragon_field_frame.loc[dragon_field_frame["RANK"] <= cutoff]
-        cutoff_fields = cutoff_frame["FIELD"].tolist()
+        return dragon_field_frame
 
-        return cutoff_fields
+    def truncated_dragon(self):
 
-
-    def truncated_dragon(self, file_name, cutoff):
-
-        field_list = self.read_dragon_fields(file_name, cutoff)
+        trunc_fields = self.get_truncated_dragon_fields()
+        field_list = trunc_fields["FIELD"].tolist()
         new_frame = pd.DataFrame(self.dragon, columns=["SMILE"])
         data_frame = pd.DataFrame(self.dragon, columns=field_list)
         narray = data_frame.as_matrix(columns=None)

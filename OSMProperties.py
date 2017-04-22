@@ -73,21 +73,30 @@ class OSMGenerateData(object):
                 self.log.info(msg)
 
     def get_dragon_headers(self):
-        # Note this returns 1667 columns, the first column is a SMILE
-        return list(self.dragon.columns.values)
+        # Note this returns 1666 columns in the same order that the columns are in the pandas array.
+        # The first column is a SMILE and is removed.
+        field_list = list(self.dragon.columns.values)
+        field_list.pop(0)
+        return field_list
 
-    def get_dragon_descriptions(self):
-        return self.dragon_fields["DESCRIPTION"].tolist()
+    def get_dragon_fields(self):
+        # Sorts field info into dragon header order and returns pandas data frame.
+        sorted_dragon_fields = pd.DataFrame(pd.Series(self.get_dragon_headers()), columns=["FIELD"])
+        sorted_dragon_fields = pd.merge(sorted_dragon_fields, self.dragon_fields, how="inner", on=["FIELD"])
+        sorted_dragon_fields = sorted_dragon_fields.drop_duplicates(subset=["FIELD"], keep="first")
+        after_merge = list(sorted_dragon_fields["FIELD"])
+        missing_list = list(set(self.get_dragon_headers()) - set(after_merge))
+        for missing in missing_list:
+            self.log.error("Dropped FIELD ID: %s after sort and merge with Dragon headers", missing)
+        if len(missing_list) > 0:
+            sys.exit()
+        return sorted_dragon_fields
 
     def get_truncated_dragon_headers(self):
         return self.trunc_dragon
 
     def get_truncated_dragon_fields(self):
         return self.dragon_fields.loc[self.dragon_fields["RANK"] <= self.dragon_truncation_rank]
-
-    def get_truncated_dragon_descriptions(self):
-        trunc_frame = self.get_truncated_dragon_fields()
-        return trunc_frame["DESCRIPTION"].tolist()
 
     def get_data(self):
         return self.data

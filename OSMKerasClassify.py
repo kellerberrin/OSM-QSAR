@@ -51,7 +51,7 @@ import keras.backend as backend
 from OSMBase import ModelMetaClass  # The virtual model class.
 from OSMKerasBase import KlassSequential
 from OSMModelData import OSMModelData
-from OSMAnalysis import OSMSensitivity, OSMDragonSensitivity, OSMTruncDragonSensitivity
+from OSMAnalysis import OSMSensitivity, OSMDragonSensitivity
 
 
 # ===============================================================================
@@ -253,15 +253,6 @@ class KlassBinaryDragon(with_metaclass(ModelMetaClass, KlassSequential)):
         return ("A KERAS (TensorFlow) multi-layer Neural Network class classification model. \n"
                 "This classifier analyzes the DRAGON data against any binary class")
 
-    def model_analytics(self):
-
-        self.log.info("Calculating Neural Network DRAGON field sensitivity, may take a few moments....")
-        func = lambda  x: self.model.predict_proba(x, verbose=0)
-        Sens = OSMDragonSensitivity(self.args, self.log)
-        dragon_sens = Sens.calc_dragon_sensitivity(func, self.data.all().input_data(), 10,
-                                                   self.raw_data.get_dragon_headers())
-        return dragon_sens
-
     def model_define(self):  # Defines the modified sequential class with regularizers defined.
 
         model = Sequential()
@@ -347,30 +338,40 @@ class KlassIonDragon(with_metaclass(ModelMetaClass, KlassSequential)):
         func = lambda  x: self.model.predict_proba(x, verbose=0)
         Sens = OSMDragonSensitivity(self.args, self.log)
 
-        self.log.info("Analytics - Calculating Field Sensitivity")
-        dragon_sensitivity = Sens.calc_dragon_sensitivity(func, data.input_data(), 10,
-                                                        self.raw_data.get_dragon_headers(),
-                                                        self.raw_data.get_dragon_descriptions())
+        result_dict = {}
 
-        self.log.info("Analytics - Calculating Field Step Sensitivity")
-        dragon_step_sensitivity = Sens.calc_dragon_step_sensitivity(func, data.input_data(), 10,
-                                                                self.raw_data.get_dragon_headers(),
-                                                                self.raw_data.get_dragon_descriptions())
+        if self.args.extendFlag and False:
 
-        self.log.info("Analytics - Calculating Field Derivatives")
-        dragon_derivative = Sens.calc_dragon_derivative(func, data.input_data(), 0.01,
-                                                   self.raw_data.get_dragon_headers(),
-                                                   self.raw_data.get_dragon_descriptions())
-
-        result_dict = { "SENSITIVITY": dragon_sensitivity,
-                        "STEP_SENSITIVITY": dragon_step_sensitivity,
-                        "DERIVATIVE" : dragon_derivative }
+            self.log.info("Analytics - Calculating Field Step (1Q) Sensitivity")
+            dragon_1q_sensitivity = Sens.calc_dragon_step_sensitivity(func, data.input_data(), 10, 25,
+                                                                    self.raw_data.get_dragon_fields())
+            result_dict = {"1Q_SENSITIVITY": dragon_1q_sensitivity }
 
         if self.args.extendFlag:
+
+            self.log.info("Analytics - Calculating Field Step (Median) Sensitivity")
+            dragon_median_sensitivity = Sens.calc_dragon_step_sensitivity(func, data.input_data(), 10, 50,
+                                                                    self.raw_data.get_dragon_fields())
+            result_dict["MEDIAN_SENSITIVITY"] = dragon_median_sensitivity
+
+        if self.args.extendFlag and False:
+
+            self.log.info("Analytics - Calculating Field Step (3Q) Sensitivity")
+            dragon_3q_sensitivity = Sens.calc_dragon_step_sensitivity(func, data.input_data(), 10, 75,
+                                                                    self.raw_data.get_dragon_fields())
+            result_dict["3Q_SENSITIVITY"] = dragon_3q_sensitivity
+
+        if self.args.extendFlag:
+
+            self.log.info("Analytics - Calculating Field Derivatives")
+            dragon_derivative = Sens.calc_dragon_derivative(func, data.input_data(), 0.01,
+                                                       self.raw_data.get_dragon_fields())
+            result_dict["DERIVATIVE"] = dragon_derivative
+
+        if self.args.extendFlag and False:  # too time consuming.
             self.log.info("Analytics - Calculating Field Partial Derivatives")
             dragon_partial = Sens.calc_dragon_partial(func, data.input_data(), 0.01,
-                                                            self.raw_data.get_dragon_headers(),
-                                                            self.raw_data.get_dragon_descriptions())
+                                                            self.raw_data.get_dragon_fields())
             result_dict["PARTIAL"] = dragon_partial
 
         return result_dict
@@ -457,32 +458,45 @@ class TruncIonDragon(with_metaclass(ModelMetaClass, KlassSequential)):
 
         self.log.info("Calculating Neural Network TRUNC_DRAGON field sensitivity, may take a few moments....")
         func = lambda  x: self.model.predict_proba(x, verbose=0)
-        Sens = OSMTruncDragonSensitivity(self.args, self.log)
+        Sens = OSMDragonSensitivity(self.args, self.log)
 
-        self.log.info("Analytics - Calculating Field Sensitivity")
-        dragon_sensitivity = Sens.calc_trunc_dragon_sensitivity(func, data.input_data(), 10,
-                                                         self.raw_data.get_truncated_dragon_headers(),
-                                                         self.raw_data.get_truncated_dragon_descriptions())
+        result_dict = {}
 
-        self.log.info("Analytics - Calculating Field Step Sensitivity")
-        dragon_step_sensitivity = Sens.calc_trunc_dragon_step_sensitivity(func, data.input_data(), 10,
-                                                                self.raw_data.get_truncated_dragon_headers(),
-                                                                self.raw_data.get_truncated_dragon_descriptions())
+        if self.args.extendFlag and False:
 
-        self.log.info("Analytics - Calculating Field Derivatives")
-        dragon_derivative = Sens.calc_trunc_dragon_derivative(func, data.input_data(), 0.01,
-                                                            self.raw_data.get_truncated_dragon_headers(),
-                                                            self.raw_data.get_truncated_dragon_descriptions())
+            self.log.info("Analytics - Calculating Field Step (1Q) Sensitivity")
+            dragon_1q_sensitivity = Sens.calc_dragon_step_sensitivity(func, data.input_data(), 10, 25,
+                                                                    self.raw_data.get_truncated_dragon_fields())
+            result_dict["1Q_SENSITIVITY"] = dragon_1q_sensitivity
 
-        result_dict = { "SENSITIVITY": dragon_sensitivity,
-                        "STEP_SENSITIVITY": dragon_step_sensitivity,
-                        "DERIVATIVE" : dragon_derivative }
 
         if self.args.extendFlag:
+
+            self.log.info("Analytics - Calculating Field Step (Median) Sensitivity")
+            dragon_median_sensitivity = Sens.calc_dragon_step_sensitivity(func, data.input_data(), 10, 50,
+                                                                    self.raw_data.get_truncated_dragon_fields())
+            result_dict["MEDIAN_SENSITIVITY"] = dragon_median_sensitivity
+
+
+        if self.args.extendFlag and False:
+
+            self.log.info("Analytics - Calculating Field Step (3Q) Sensitivity")
+            dragon_3q_sensitivity = Sens.calc_dragon_step_sensitivity(func, data.input_data(), 10, 75,
+                                                                    self.raw_data.get_truncated_dragon_fields())
+            result_dict["3Q_SENSITIVITY"] =  dragon_3q_sensitivity
+
+        if self.args.extendFlag:
+
+            self.log.info("Analytics - Calculating Field Derivatives")
+            dragon_derivative = Sens.calc_dragon_derivative(func, data.input_data(), 0.01,
+                                                            self.raw_data.get_truncated_dragon_fields())
+            result_dict["DERIVATIVE"] =  dragon_derivative
+
+        if self.args.extendFlag and False:
+
             self.log.info("Analytics - Calculating Field Partial Derivatives")
-            dragon_partial = Sens.calc_trunc_dragon_partial(func, data.input_data(), 0.01,
-                                                            self.raw_data.get_truncated_dragon_headers(),
-                                                            self.raw_data.get_truncated_dragon_descriptions())
+            dragon_partial = Sens.calc_dragon_partial(func, data.input_data(), 0.01,
+                                                    self.raw_data.get_truncated_dragon_fields())
             result_dict["PARTIAL"] = dragon_partial
 
         return result_dict

@@ -256,6 +256,8 @@ class OSMClassification(OSMBaseModel):
                 for var in independent_list:
                     line = "IndependentVar(Input), {}\n".format(var)
                     stats_file.write(line)
+                line = "Load File, {}\n".format(self.args.loadFilename)
+                stats_file.write(line)
                 line = "TrainingEpochs, {}\n".format(self.model_epochs())
                 stats_file.write(line)
                 line = "Runtime, {}\n".format(time.asctime(time.localtime(time.time())))
@@ -341,11 +343,14 @@ class OSMClassification(OSMBaseModel):
 
         if sensitivity_dict is None: return
 
-        if "SENSITIVITY" in sensitivity_dict:
-            self.write_analytic_type(directory, sensitivity_dict["SENSITIVITY"], "SENSITIVITY")
+        if "1Q_SENSITIVITY" in sensitivity_dict:
+            self.write_step_analytic_type(directory, sensitivity_dict["1Q_SENSITIVITY"])
 
-        if "STEP_SENSITIVITY" in sensitivity_dict:
-            self.write_step_analytic_type(directory, sensitivity_dict["STEP_SENSITIVITY"])
+        if "MEDIAN_SENSITIVITY" in sensitivity_dict:
+            self.write_step_analytic_type(directory, sensitivity_dict["MEDIAN_SENSITIVITY"])
+
+        if "3Q_SENSITIVITY" in sensitivity_dict:
+            self.write_step_analytic_type(directory, sensitivity_dict["3Q_SENSITIVITY"])
 
         if "DERIVATIVE" in sensitivity_dict:
             self.write_analytic_type(directory, sensitivity_dict["DERIVATIVE"], "DERIVATIVE")
@@ -366,7 +371,7 @@ class OSMClassification(OSMBaseModel):
                 stats_file.write(line)
 
                 for field_sens in sensitivity_vector:
-                    line = 'field, {}, description, "{}", index, {}, sensitivity, {}\n'.format(field_sens[0],
+                    line = 'field,{},description,"{}",index,{},sensitivity,{}\n'.format(field_sens[0],
                                                                                              field_sens[1],
                                                                                              field_sens[2],
                                                                                              field_sens[3])
@@ -387,19 +392,19 @@ class OSMClassification(OSMBaseModel):
                 line = "++++++++++++++++++,{},+++++++++++++++++++\n".format("STEP SENSITIVITY")
                 stats_file.write(line)
 
-                line = "field, description, index, sum(abs()), min, max, step, median, mean, Prob(sum(abs()))"
+                line = "field,description,index,sum(abs()),min,max,step,percentile,mean,Prob(sum(abs())),Prob(sum())"
                 step_size = sensitivity_step_list[0][4].shape[0]
                 field_size = len(sensitivity_step_list)
-                for step in range(step_size-6):
-                    line += ", Prob({})".format(step)
+                for step in range(step_size-7):
+                    line += ",Prob({})".format(step)
                 stats_file.write(line+"\n")
                 for field in range(field_size):
-                    line = '{}, "{}", {}, {}'.format(sensitivity_step_list[field][0],
+                    line = '{},"{}",{},{}'.format(sensitivity_step_list[field][0],
                                                sensitivity_step_list[field][1],
                                                sensitivity_step_list[field][2],
                                                sensitivity_step_list[field][3])
                     for step in range(step_size):
-                        line += ", {}".format(sensitivity_step_list[field][4][step])
+                        line += ",{}".format(sensitivity_step_list[field][4][step])
                     stats_file.write(line+"\n")
 
         except IOError:
@@ -416,15 +421,15 @@ class OSMClassification(OSMBaseModel):
 
                 line = "++++++++++++++++++,{},+++++++++++++++++++\n".format("PARTIAL")
                 stats_file.write(line)
-                line = "field, description"
+                line = "field,description"
                 for field in partial_list[0]:
-                    line += ", {}".format(field)
+                    line += ",{}".format(field)
                 stats_file.write(line+"\n")
                 partial_size = partial_list[2].shape[0]
                 for row in range(partial_size):
-                    line = '{}, "{}"'.format(partial_list[0][row], partial_list[1][row])
+                    line = '{},"{}"'.format(partial_list[0][row], partial_list[1][row])
                     for col in range(partial_size):
-                        line += ", {}".format(partial_list[2][row][col])
+                        line += ",{}".format(partial_list[2][row][col])
                     stats_file.write(line+"\n")
 
         except IOError:

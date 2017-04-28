@@ -49,8 +49,8 @@ import keras.backend as backend
 
 from OSMBase import ModelMetaClass  # The virtual model class.
 from OSMKerasBase import KerasClassifier
-from OSMKerasClassify import KlassBinaryDragon, KlassBinaryMorgan
-from OSMKerasClassify import KlassIonDragon, KlassIonMaccs, KlassIonMorgan, TruncIonDragon
+from OSMKerasDragon import KlassBinaryDragon, KlassIonDragon, TruncIonDragon
+from OSMKerasFingerprint import  KlassIonMaccs, KlassIonMorgan, KlassBinaryMorgan
 from OSMModelData import OSMModelData
 from OSMSKLearnClassify import OSMSKLearnLOGC, OSMSKLearnNBC  # All The SKLearn Classifiers for the meta NN
 

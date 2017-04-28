@@ -50,7 +50,7 @@ from OSMBase import ModelMetaClass  # The virtual model class.
 from OSMClassify import OSMClassification  # Display and save classifier results.
 from OSMModelData import OSMModelData  # specify variable types.
 from OSMGraphics import OSMSimilarityMap
-from OSMKerasClassify import KlassIonDragon
+from OSMKerasDragon import KlassIonDragon
 
 # A grab-bag of ML techniques implemented in SKLearn.
 

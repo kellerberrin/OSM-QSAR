@@ -35,6 +35,9 @@ from sklearn.decomposition import PCA, KernelPCA
 from rdkit import Chem
 from rdkit.Chem import AllChem
 
+import deepchem as dc
+from deepchem.feat import Featurizer, CoulombMatrix, CoulombMatrixEig
+
 
 # ===================================================================================================
 #
@@ -56,8 +59,8 @@ class OSMGenerateData(object):
         self.dragon_fields = self.read_dragon_fields("DragonFields.csv")
         self.dragon_truncation_rank = 100
         self.trunc_dragon = self.truncated_dragon()
-
-        self.check_smiles(self.data)
+        self.max_atoms = self.check_smiles(self.data)
+        self.generate_coulomb_matrices()
 
         self.generate_fields()
 
@@ -69,7 +72,7 @@ class OSMGenerateData(object):
 
     def display_variables(self):
             for column in self.data.columns:
-                msg = "Variable: {:20s} Dimension: {:4d}".format(column, self.get_dimension(column))
+                msg = "Variable: {:20s} Dimension: {}".format(column, self.get_dimension(column))
                 self.log.info(msg)
 
     def get_dragon_headers(self):
@@ -106,7 +109,8 @@ class OSMGenerateData(object):
             self.log.error("Unexpected Error column %s contains no rows", column_name)
             sys.exit()
         if isinstance(self.data[column_name][0], np.ndarray):
-            return self.data[column_name][0].shape[0]
+            shape = self.data[column_name][0].shape
+            return shape
         else:
             return 1
 
@@ -123,6 +127,51 @@ class OSMGenerateData(object):
         self.generate_pEC50()
         # ION_ACTIVE class reduces ION_ACTIVITY to 2 classes ["ACTIVE", "INACTIVE"]
         self.generate_ion_active()
+
+
+    def generate_coulomb_matrices(self):
+
+        self.log.info("Generating Coulomb Matrices, may take a few moments ...")
+
+        matrix_featurizer = CoulombMatrix(self.max_atoms)
+        eigen_featurizer = CoulombMatrixEig(self.max_atoms)
+
+        matrices = []
+        rand_matrices = []
+        rand_arrays = []
+        smiles = []
+        arrays = []
+        eigenarrays = []
+
+        for index, row in self.data.iterrows():
+            mol = Chem.MolFromSmiles(row["SMILE"])
+            Chem.AddHs(mol)
+            if AllChem.EmbedMolecule(mol) != 0:
+                self.log.warning("Coulomb Matrix - unable to generate conformer for smile: %s", row["SMILE"])
+            else:
+                AllChem.UFFOptimizeMolecule(mol)
+                matrix = matrix_featurizer.coulomb_matrix(mol)
+                rand_matrix = matrix_featurizer.randomize_coulomb_matrix(matrix[0])
+                matrices.append(matrix[0])
+                rand_matrices.append(rand_matrix[0])
+                arrays.append(matrix[0].flatten())
+                rand_arrays.append(rand_matrix[0].flatten())
+                smiles.append(row["SMILE"])
+                eigenvalues = eigen_featurizer.featurize([mol])
+                eigenarrays.append(eigenvalues[0].flatten())
+
+
+        pd_dict = { "SMILE": smiles, "COULOMB": matrices, "COULOMB_ARRAY": arrays,
+                    "COULOMB_RAND": rand_matrices, "COULOMB_RAND_ARRAY" : rand_arrays, "COULOMB_EIGEN" : eigenarrays }
+        coulomb_frame = pd.DataFrame(pd_dict)
+
+        before_ids = list(self.data["ID"])
+        self.data = pd.merge(self.data, coulomb_frame, how="inner", on=["SMILE"])
+        self.data = self.data.drop_duplicates(subset=["SMILE"], keep="first")
+        after_ids = list(self.data["ID"])
+        missing_list = list(set(before_ids) - set(after_ids))
+        for missing in missing_list:
+            self.log.warning("Dropped molecule ID: %s after join with Coulomb Matrix data", missing)
 
     def generate_potency_class(self, nMol):
 
@@ -297,6 +346,10 @@ class OSMGenerateData(object):
 
     def check_smiles(self, data_frame):
         # Check all the "SMILES" and ensure they are valid.
+        # also calculates the maximum number of atoms for calculating
+        # coulomb matrices
+
+        max_atoms = 0
 
         for index, row in data_frame.iterrows():
 
@@ -313,3 +366,10 @@ class OSMGenerateData(object):
                 self.log.warning("Record Deleted. OSM_QSAR attempts to continue ....")
                 data_frame.drop(index, inplace=True)
 
+            num_atoms = mol.GetNumAtoms()
+            if num_atoms > max_atoms:
+                max_atoms = num_atoms
+
+        self.log.info("Maximum Molecular Atoms: %d", max_atoms)
+
+        return max_atoms

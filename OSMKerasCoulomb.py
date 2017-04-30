@@ -35,15 +35,15 @@ from sklearn.utils import shuffle
 
 from keras.models import Sequential
 from keras.layers import Dense
-from keras.layers import Dropout
+from keras.layers import Dropout, Conv2D, MaxPooling2D, AveragePooling2D, Flatten
 from keras.layers.noise import GaussianDropout, GaussianNoise
 from keras.layers import normalization, BatchNormalization
-from keras.regularizers import l2, l1l2, activity_l2
+from keras.regularizers import l2, l1_l2
 from keras.models import load_model
 from keras.constraints import maxnorm
+from keras.initializers import TruncatedNormal
 from keras.optimizers import SGD, Adam, Adagrad, Adadelta
 from keras.utils import np_utils
-from keras.initializations import uniform, normal, he_normal, orthogonal
 
 #from keras.utils.visualize_util import plot
 import keras.backend as backend
@@ -94,43 +94,43 @@ class CoulombMatrix(with_metaclass(ModelMetaClass, KlassSequential)):
 
         adam = Adam(lr=0.0005, beta_1=0.9, beta_2=0.999, epsilon=5e-09)
 
-        model.add(Dense(2048, input_dim=2916, init=initializer, activation=activation_func
-                        , activity_regularizer=l1l2(l1_param, l2_param), W_constraint=maxnorm(3)))
+        model.add(Dense(2048, input_dim=2916, kernel_initializer=initializer, activation=activation_func
+                        , activity_regularizer=l1_l2(l1_param, l2_param), kernel_constraint=maxnorm(3)))
         model.add(Dropout(dropout_param))
         model.add(BatchNormalization())
         model.add(GaussianNoise(Gaussian_noise))
 
-        model.add(Dense(2048, init=initializer, activation=activation_func
-                        , activity_regularizer=l1l2(l1_param, l2_param), W_constraint=maxnorm(3)))
+        model.add(Dense(2048, kernel_initializer=initializer, activation=activation_func
+                        , activity_regularizer=l1_l2(l1_param, l2_param), kernel_constraint=maxnorm(3)))
         model.add(Dropout(dropout_param))
         model.add(BatchNormalization())
         model.add(GaussianNoise(Gaussian_noise))
 
-        model.add(Dense(2048, init=initializer, activation=activation_func
-                        , activity_regularizer=l1l2(l1_param, l2_param), W_constraint=maxnorm(3)))
+        model.add(Dense(2048, kernel_initializer=initializer, activation=activation_func
+                        , activity_regularizer=l1_l2(l1_param, l2_param), kernel_constraint=maxnorm(3)))
         model.add(Dropout(dropout_param))
         model.add(BatchNormalization())
         model.add(GaussianNoise(Gaussian_noise))
 
-        model.add(Dense(1024, init=initializer, activation=activation_func
-                        , activity_regularizer=l1l2(l1_param, l2_param), W_constraint=maxnorm(3)))
+        model.add(Dense(1024, kernel_initializer=initializer, activation=activation_func
+                        , activity_regularizer=l1_l2(l1_param, l2_param), kernel_constraint=maxnorm(3)))
         model.add(Dropout(dropout_param))
         model.add(BatchNormalization())
         model.add(GaussianNoise(Gaussian_noise))
 
-        model.add(Dense(512, init=initializer, activation=activation_func
-                        , activity_regularizer=l1l2(l1_param, l2_param), W_constraint=maxnorm(3)))
+        model.add(Dense(512, kernel_initializer=initializer, activation=activation_func
+                        , activity_regularizer=l1_l2(l1_param, l2_param), kernel_constraint=maxnorm(3)))
         model.add(Dropout(dropout_param))
         model.add(BatchNormalization())
         model.add(GaussianNoise(Gaussian_noise))
 
-        model.add(Dense(64, init=initializer, activation=activation_func
-                        , activity_regularizer=l1l2(l1_param, l2_param), W_constraint=maxnorm(3)))
+        model.add(Dense(64, kernel_initializer=initializer, activation=activation_func
+                        , activity_regularizer=l1_l2(l1_param, l2_param), kernel_constraint=maxnorm(3)))
 
         model.add(Dropout(dropout_param))
         model.add(BatchNormalization())
 
-        model.add(Dense(3, activation="softmax", init=initializer))
+        model.add(Dense(3, activation="softmax", kernel_initializer=initializer))
         model.compile(loss="categorical_crossentropy", optimizer=adam, metrics=["accuracy"])
 
         return model
@@ -146,7 +146,7 @@ class CoulombConvolution(with_metaclass(ModelMetaClass, KlassSequential)):
         # Define the model data view.
         # Define the model variable types here. Documented in "OSMModelData.py".
         self.arguments = {"DEPENDENT": {"VARIABLE": "ION_ACTIVITY", "SHAPE": [3], "TYPE": OSMModelData.CLASSES}
-            , "INDEPENDENT": [{"VARIABLE": "COULOMB", "SHAPE": [54, 54], "TYPE": OSMModelData.FLOAT64}]}
+            , "INDEPENDENT": [{"VARIABLE": "COULOMB", "SHAPE": None, "TYPE": OSMModelData.FLOAT64}]}
 
     # These functions need to be re-defined in all classifier model classes.
 
@@ -158,57 +158,49 @@ class CoulombConvolution(with_metaclass(ModelMetaClass, KlassSequential)):
 
     def model_description(self):
         return ("A KERAS (TensorFlow) multi-layer Neural Network class classification model. \n"
-                "This classifier analyzes molecular convolved coulomb matrices against ION_ACTIVITY")
+                "This classifier analyzes convolved molecular coulomb matrices against ION_ACTIVITY")
 
     def model_define(self):  # Defines the modified sequential class with regularizers defined.
 
         model = Sequential()
         l2_param = 0.0
         l1_param = 0.0
-        dropout_param = 0.5
+        dropout_param = 0.2
         Gaussian_noise = 1
         initializer = "uniform"
         activation_func = "relu"
+        kernel_size = (4,4)
+        pool_size = (2,2)
+        filters = 32
+
+        input_tensor_shape = self.data.training().input_data().shape
+        input_shape = tuple(x for i, x in enumerate(input_tensor_shape) if i > 0) # remove rows
+
+        info_text = "The 'ion_cc' input tensor shape is {}".format(input_tensor_shape)
+        self.log.info(info_text)
 
         adam = Adam(lr=0.0005, beta_1=0.9, beta_2=0.999, epsilon=5e-09)
 
-        model.add(Dense(2048, input_dim=2916, init=initializer, activation=activation_func
-                        , activity_regularizer=l1l2(l1_param, l2_param), W_constraint=maxnorm(3)))
+        model.add(Conv2D(filters=filters, kernel_size=kernel_size, input_shape=input_shape, activation=activation_func
+                         ,data_format='channels_first', kernel_initializer=initializer))
+        model.add(MaxPooling2D(pool_size=pool_size))
+
+        model.add(Conv2D(filters=filters, kernel_size=kernel_size, activation=activation_func
+                         , kernel_initializer=initializer))
+        model.add(MaxPooling2D(pool_size=(3,3)))
+
+        model.add(Flatten())
+
+        model.add(Dense(512, activation=activation_func, kernel_constraint=maxnorm(3)
+                        ,kernel_initializer=initializer))
         model.add(Dropout(dropout_param))
-        model.add(BatchNormalization())
-        model.add(GaussianNoise(Gaussian_noise))
 
-        model.add(Dense(2048, init=initializer, activation=activation_func
-                        , activity_regularizer=l1l2(l1_param, l2_param), W_constraint=maxnorm(3)))
+        model.add(Dense(512, activation=activation_func, kernel_constraint=maxnorm(3)
+                        ,kernel_initializer=initializer))
         model.add(Dropout(dropout_param))
-        model.add(BatchNormalization())
-        model.add(GaussianNoise(Gaussian_noise))
 
-        model.add(Dense(2048, init=initializer, activation=activation_func
-                        , activity_regularizer=l1l2(l1_param, l2_param), W_constraint=maxnorm(3)))
-        model.add(Dropout(dropout_param))
-        model.add(BatchNormalization())
-        model.add(GaussianNoise(Gaussian_noise))
+        model.add(Dense(3, activation='softmax'))
 
-        model.add(Dense(1024, init=initializer, activation=activation_func
-                        , activity_regularizer=l1l2(l1_param, l2_param), W_constraint=maxnorm(3)))
-        model.add(Dropout(dropout_param))
-        model.add(BatchNormalization())
-        model.add(GaussianNoise(Gaussian_noise))
-
-        model.add(Dense(512, init=initializer, activation=activation_func
-                        , activity_regularizer=l1l2(l1_param, l2_param), W_constraint=maxnorm(3)))
-        model.add(Dropout(dropout_param))
-        model.add(BatchNormalization())
-        model.add(GaussianNoise(Gaussian_noise))
-
-        model.add(Dense(64, init=initializer, activation=activation_func
-                        , activity_regularizer=l1l2(l1_param, l2_param), W_constraint=maxnorm(3)))
-
-        model.add(Dropout(dropout_param))
-        model.add(BatchNormalization())
-
-        model.add(Dense(3, activation="softmax", init=initializer))
         model.compile(loss="categorical_crossentropy", optimizer=adam, metrics=["accuracy"])
 
         return model
@@ -238,7 +230,6 @@ class CoulombEigen(with_metaclass(ModelMetaClass, KlassSequential)):
         return ("A KERAS (TensorFlow) multi-layer Neural Network class classification model. \n"
                 "This classifier analyzes molecular coulomb matrix eigenvalues against ION_ACTIVITY")
 
-
     def model_define(self):  # Defines the modified sequential class with regularizers defined.
 
         model = Sequential()
@@ -251,43 +242,43 @@ class CoulombEigen(with_metaclass(ModelMetaClass, KlassSequential)):
 
         adam = Adam(lr=0.0005, beta_1=0.9, beta_2=0.999, epsilon=5e-09)
 
-        model.add(Dense(256, input_dim=54, init=initializer, activation=activation_func
-                        , activity_regularizer=l1l2(l1_param, l2_param), W_constraint=maxnorm(3)))
+        model.add(Dense(256, input_dim=54, kernel_initializer=initializer, activation=activation_func
+                        , activity_regularizer=l1_l2(l1_param, l2_param), kernel_constraint=maxnorm(3)))
         model.add(Dropout(dropout_param))
         model.add(BatchNormalization())
         model.add(GaussianNoise(Gaussian_noise))
 
-        model.add(Dense(1024, init=initializer, activation=activation_func
-                        , activity_regularizer=l1l2(l1_param, l2_param), W_constraint=maxnorm(3)))
+        model.add(Dense(1024, kernel_initializer=initializer, activation=activation_func
+                        , activity_regularizer=l1_l2(l1_param, l2_param), kernel_constraint=maxnorm(3)))
         model.add(Dropout(dropout_param))
         model.add(BatchNormalization())
         model.add(GaussianNoise(Gaussian_noise))
 
-        model.add(Dense(1024, init=initializer, activation=activation_func
-                        , activity_regularizer=l1l2(l1_param, l2_param), W_constraint=maxnorm(3)))
+        model.add(Dense(1024, kernel_initializer=initializer, activation=activation_func
+                        , activity_regularizer=l1_l2(l1_param, l2_param), kernel_constraint=maxnorm(3)))
         model.add(Dropout(dropout_param))
         model.add(BatchNormalization())
         model.add(GaussianNoise(Gaussian_noise))
 
-        model.add(Dense(1024, init=initializer, activation=activation_func
-                        , activity_regularizer=l1l2(l1_param, l2_param), W_constraint=maxnorm(3)))
+        model.add(Dense(1024, kernel_initializer=initializer, activation=activation_func
+                        , activity_regularizer=l1_l2(l1_param, l2_param), kernel_constraint=maxnorm(3)))
         model.add(Dropout(dropout_param))
         model.add(BatchNormalization())
         model.add(GaussianNoise(Gaussian_noise))
 
-        model.add(Dense(512, init=initializer, activation=activation_func
-                        , activity_regularizer=l1l2(l1_param, l2_param), W_constraint=maxnorm(3)))
+        model.add(Dense(512, kernel_initializer=initializer, activation=activation_func
+                        , activity_regularizer=l1_l2(l1_param, l2_param), kernel_constraint=maxnorm(3)))
         model.add(Dropout(dropout_param))
         model.add(BatchNormalization())
         model.add(GaussianNoise(Gaussian_noise))
 
-        model.add(Dense(64, init=initializer, activation=activation_func
-                        , activity_regularizer=l1l2(l1_param, l2_param), W_constraint=maxnorm(3)))
+        model.add(Dense(64, kernel_initializer=initializer, activation=activation_func
+                        , activity_regularizer=l1_l2(l1_param, l2_param), kernel_constraint=maxnorm(3)))
 
         model.add(Dropout(dropout_param))
         model.add(BatchNormalization())
 
-        model.add(Dense(3, activation="softmax", init=initializer))
+        model.add(Dense(3, activation="softmax", kernel_initializer=initializer))
         model.compile(loss="categorical_crossentropy", optimizer=adam, metrics=["accuracy"])
 
         return model

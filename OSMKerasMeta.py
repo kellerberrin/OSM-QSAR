@@ -37,7 +37,7 @@ from keras.models import Sequential
 from keras.layers import Dense
 from keras.layers import Dropout
 from keras.layers import normalization, BatchNormalization
-from keras.regularizers import l2, l1l2, activity_l2
+from keras.regularizers import l2, l1_l2
 from keras.layers.noise import GaussianDropout, GaussianNoise
 from keras.models import load_model
 from keras.constraints import maxnorm
@@ -51,6 +51,7 @@ from OSMBase import ModelMetaClass  # The virtual model class.
 from OSMKerasBase import KerasClassifier
 from OSMKerasDragon import KlassBinaryDragon, KlassIonDragon, TruncIonDragon
 from OSMKerasFingerprint import  KlassIonMaccs, KlassIonMorgan, KlassBinaryMorgan
+from OSMKerasCoulomb import CoulombMatrix
 from OSMModelData import OSMModelData
 from OSMSKLearnClassify import OSMSKLearnLOGC, OSMSKLearnNBC  # All The SKLearn Classifiers for the meta NN
 
@@ -71,7 +72,8 @@ class MetaSequential(with_metaclass(ModelMetaClass, KerasClassifier)):
                               {"VARIABLE": "TOPOLOGICAL2048", "SHAPE": [2048], "TYPE": OSMModelData.FLOAT64},
                               {"VARIABLE": "MORGAN2048_1", "SHAPE": [2048], "TYPE": OSMModelData.FLOAT64},
                               {"VARIABLE": "MACCFP", "SHAPE": [167], "TYPE": OSMModelData.FLOAT64},
-                              {"VARIABLE": "TRUNC_DRAGON", "SHAPE": [100], "TYPE": OSMModelData.FLOAT64}]}
+                              {"VARIABLE": "TRUNC_DRAGON", "SHAPE": [100], "TYPE": OSMModelData.FLOAT64},
+                              {"VARIABLE": "COULOMB_ARRAY", "SHAPE": [2916], "TYPE": OSMModelData.FLOAT64}]}
 
 
         self.model_define_meta(args, log)
@@ -83,31 +85,40 @@ class MetaSequential(with_metaclass(ModelMetaClass, KerasClassifier)):
         ion_d_args.indepList = ["DRAGON"]
         ion_d_args.dependVar = "ION_ACTIVITY"
         ion_d_args.train = 0
-        ion_d_args.epoch = 625
-        ion_d_args.loadFilename = os.path.join(ion_d_args.postfixDirectory, "ION_DRAGON")
+        ion_d_args.epoch = 200
+        ion_d_args.loadFilename = os.path.join(ion_d_args.postfixDirectory, "DRAGON")
         self.dnn_dragon = KlassIonDragon(ion_d_args, log)
 
         ion_td_args = copy.deepcopy(args) #ensure that args cannot be side-swiped.
         ion_td_args.indepList = ["TRUNC_DRAGON"]
         ion_td_args.dependVar = "ION_ACTIVITY"
         ion_td_args.train = 0
-        ion_td_args.epoch = 120
+        ion_td_args.epoch = 160
         ion_td_args.loadFilename = os.path.join(ion_td_args.postfixDirectory, "TRUNC100")
         self.dnn_trunc_dragon = TruncIonDragon(ion_td_args, log)
+
+        ion_c_args = copy.deepcopy(args) #ensure that args cannot be side-swiped.
+        ion_c_args.indepList = ["COULOMB_ARRAY"]
+        ion_c_args.dependVar = "ION_ACTIVITY"
+        ion_c_args.train = 0
+        ion_c_args.epoch = 100
+        ion_c_args.loadFilename = os.path.join(ion_c_args.postfixDirectory, "COULOMB")
+        self.dnn_coulomb = CoulombMatrix(ion_c_args, log)
+
 
         binion_d_args = copy.deepcopy(args) #ensure that args cannot be side-swiped.
         binion_d_args.indepList = ["DRAGON"]
         binion_d_args.dependVar = "ION_ACTIVE"
         binion_d_args.train = 0
-        binion_d_args.epoch = 420
-        binion_d_args.loadFilename = os.path.join(ion_d_args.postfixDirectory, "BIN_ION_DRAGON")
+        binion_d_args.epoch = 140
+        binion_d_args.loadFilename = os.path.join(ion_d_args.postfixDirectory, "BIN_DRAGON")
         self.dnn_bin_dragon = KlassBinaryDragon(binion_d_args, log)
 
         ion_m1_args = copy.deepcopy(args) #ensure that args cannot be side-swiped.
         ion_m1_args.indepList = ["MORGAN2048_1"]
         ion_m1_args.dependVar = "ION_ACTIVITY"
         ion_m1_args.train = 0
-        ion_m1_args.epoch = 150
+        ion_m1_args.epoch = 300
         ion_m1_args.loadFilename = os.path.join(ion_d_args.postfixDirectory, "ION_MORGAN1")
         self.dnn_morgan1 = KlassIonMorgan(ion_m1_args, log)
 
@@ -115,7 +126,7 @@ class MetaSequential(with_metaclass(ModelMetaClass, KerasClassifier)):
         ion_m5_args.indepList = ["MORGAN2048_5"]
         ion_m5_args.dependVar = "ION_ACTIVITY"
         ion_m5_args.train = 0
-        ion_m5_args.epoch = 220
+        ion_m5_args.epoch = 120
         ion_m5_args.loadFilename = os.path.join(ion_d_args.postfixDirectory, "ION_MORGAN5")
         self.dnn_morgan5 = KlassIonMorgan(ion_m5_args, log)
 
@@ -123,7 +134,7 @@ class MetaSequential(with_metaclass(ModelMetaClass, KerasClassifier)):
         ec50_m5_args.indepList = ["MORGAN2048_5"]
         ec50_m5_args.dependVar = "EC50_500"
         ec50_m5_args.train = 0
-        ec50_m5_args.epoch = 250
+        ec50_m5_args.epoch = 540
         ec50_m5_args.loadFilename = os.path.join(ion_d_args.postfixDirectory, "EC50_500_MORGAN5")
         self.dnn_ec50_m5 = KlassBinaryMorgan(ec50_m5_args, log)
 
@@ -131,7 +142,7 @@ class MetaSequential(with_metaclass(ModelMetaClass, KerasClassifier)):
         ion_top_args.indepList = ["TOPOLOGICAL2048"]
         ion_top_args.dependVar = "ION_ACTIVITY"
         ion_top_args.train = 0
-        ion_top_args.epoch = 60
+        ion_top_args.epoch = 480
         ion_top_args.loadFilename = os.path.join(ion_d_args.postfixDirectory, "ION_TOPOLOGICAL")
         self.dnn_top = KlassIonMorgan(ion_top_args, log)
 
@@ -139,7 +150,7 @@ class MetaSequential(with_metaclass(ModelMetaClass, KerasClassifier)):
         ion_macc_args.indepList = ["MACCFP"]
         ion_macc_args.dependVar = "ION_ACTIVITY"
         ion_macc_args.train = 0
-        ion_macc_args.epoch = 30
+        ion_macc_args.epoch = 420
         ion_macc_args.loadFilename = os.path.join(ion_d_args.postfixDirectory, "ION_MACCS")
         self.dnn_macc = KlassIonMaccs(ion_macc_args, log)
 
@@ -158,6 +169,7 @@ class MetaSequential(with_metaclass(ModelMetaClass, KerasClassifier)):
         self.logc.initialize(self.raw_data)
         self.dnn_dragon.initialize(self.raw_data)
         self.dnn_trunc_dragon.initialize(self.raw_data)
+        self.dnn_coulomb.initialize(self.raw_data)
         self.dnn_morgan1.initialize(self.raw_data)
         self.dnn_morgan5.initialize(self.raw_data)
         self.dnn_top.initialize(self.raw_data)
@@ -188,15 +200,15 @@ class MetaSequential(with_metaclass(ModelMetaClass, KerasClassifier)):
 
         adam = Adam(lr=0.0005, beta_1=0.9, beta_2=0.999, epsilon=5e-09)
 
-        model.add(Dense(16, input_dim=2, init="uniform", activation="relu", W_constraint=maxnorm(3)))
+        model.add(Dense(16, input_dim=2, kernel_initializer="uniform", activation="relu", kernel_constraint=maxnorm(3)))
         model.add(Dropout(dropout_param))
-        model.add(Dense(32, init="uniform", activation="relu", W_constraint=maxnorm(3)))
+        model.add(Dense(32, kernel_initializer="uniform", activation="relu", kernel_constraint=maxnorm(3)))
         model.add(Dropout(dropout_param))
-        model.add(Dense(32, init="uniform", activation="relu", W_constraint=maxnorm(3)))
+        model.add(Dense(32, init="uniform", activation="relu", kernel_constraint=maxnorm(3)))
         model.add(Dropout(dropout_param))
-        model.add(Dense(16, init="uniform", activation="relu", W_constraint=maxnorm(3)))
+        model.add(Dense(16, kernel_initializer="uniform", activation="relu", kernel_constraint=maxnorm(3)))
         model.add(Dropout(dropout_param))
-        model.add(Dense(2, activation = "softmax", init="normal"))
+        model.add(Dense(2, activation = "softmax", kernel_initializer="normal"))
         model.compile(loss="categorical_crossentropy", optimizer=adam, metrics=["accuracy"])
 
         return model
@@ -235,7 +247,7 @@ class MetaSequential(with_metaclass(ModelMetaClass, KerasClassifier)):
         binary_labels = np_utils.to_categorical(index_list)
 
         hist = self.model.fit(self.input_probability(self.data.training()), binary_labels,
-                       validation_split=self.args.holdOut, nb_epoch=epoch, verbose=1)
+                       validation_split=self.args.holdOut, epochs=epoch, verbose=1)
 
         self.train_history("model_aux.csv", hist.history, epoch)
 
@@ -253,6 +265,8 @@ class MetaSequential(with_metaclass(ModelMetaClass, KerasClassifier)):
         dnn_dragon_prob = np.asarray(dnn_dragon_prob)
         dnn_trunc_dragon_prob = self.dnn_trunc_dragon.model.predict_proba(data.input_data()["TRUNC_DRAGON"])
         dnn_trunc_dragon_prob = np.asarray(dnn_trunc_dragon_prob)
+        dnn_coulomb_prob = self.dnn_coulomb.model.predict_proba(data.input_data()["COULOMB_ARRAY"])
+        dnn_coulomb_prob = np.asarray(dnn_coulomb_prob)
         dnn_m1_prob = self.dnn_morgan1.model.predict_proba(data.input_data()["MORGAN2048_1"])
         dnn_m1_prob = np.asarray(dnn_m1_prob)
         dnn_m5_prob = self.dnn_morgan5.model.predict_proba(data.input_data()["MORGAN2048_5"])
@@ -340,15 +354,15 @@ class OSMMeta(with_metaclass(ModelMetaClass, KerasClassifier)):
 
         adam = Adam(lr=0.0005, beta_1=0.9, beta_2=0.999, epsilon=5e-09)
 
-        model.add(Dense(16, input_dim=2, init="uniform", activation="relu", W_constraint=maxnorm(3)))
+        model.add(Dense(16, input_dim=2, kernel_initializer="uniform", activation="relu", kernel_constraint=maxnorm(3)))
         model.add(Dropout(dropout_param))
-        model.add(Dense(32, init="uniform", activation="relu", W_constraint=maxnorm(3)))
+        model.add(Dense(32, kernel_initializer="uniform", activation="relu", kernel_constraint=maxnorm(3)))
         model.add(Dropout(dropout_param))
-        model.add(Dense(32, init="uniform", activation="relu", W_constraint=maxnorm(3)))
+        model.add(Dense(32, kernel_initializer="uniform", activation="relu", kernel_constraint=maxnorm(3)))
         model.add(Dropout(dropout_param))
-        model.add(Dense(16, init="uniform", activation="relu", W_constraint=maxnorm(3)))
+        model.add(Dense(16, kernel_initializer="uniform", activation="relu", kernel_constraint=maxnorm(3)))
         model.add(Dropout(dropout_param))
-        model.add(Dense(2, activation="softmax", init="normal"))
+        model.add(Dense(2, activation="softmax", kernel_initializer="normal"))
         model.compile(loss="categorical_crossentropy", optimizer=adam, metrics=["accuracy"])
 
         return model
@@ -387,7 +401,7 @@ class OSMMeta(with_metaclass(ModelMetaClass, KerasClassifier)):
         binary_labels = np_utils.to_categorical(index_list)
 
         hist = self.model.fit(self.input_probability(self.data.training()), binary_labels,
-                              validation_split=self.args.holdOut, nb_epoch=epoch, verbose=1)
+                              validation_split=self.args.holdOut, epochs=epoch, verbose=1)
 
         self.train_history("model_aux.csv", hist.history, epoch)
 
@@ -431,7 +445,7 @@ class OSMTruncMeta(with_metaclass(ModelMetaClass, KerasClassifier)):
         ion_d_args.indepList = ["TRUNC_DRAGON"]
         ion_d_args.dependVar = "ION_ACTIVITY"
         ion_d_args.train = 0
-        ion_d_args.epoch = 120
+        ion_d_args.epoch = 160
         ion_d_args.loadFilename = os.path.join(ion_d_args.postfixDirectory, "TRUNC100")
         self.dnn_dragon = TruncIonDragon(ion_d_args, log)
 
@@ -473,37 +487,22 @@ class OSMTruncMeta(with_metaclass(ModelMetaClass, KerasClassifier)):
 
         adam = Adam(lr=0.0005, beta_1=0.9, beta_2=0.999, epsilon=5e-09)
 
-        model.add(Dense(16, input_dim=2, init="uniform", activation=activation_fn, W_constraint=maxnorm(3)))
+        model.add(Dense(32, input_dim=2, kernel_initializer="uniform", activation=activation_fn, kernel_constraint=maxnorm(3)))
         model.add(Dropout(dropout_param))
         model.add(BatchNormalization())
         model.add(GaussianNoise(Gaussian_noise))
 
-        model.add(Dense(128, init="uniform", activation=activation_fn, W_constraint=maxnorm(3)))
+        model.add(Dense(128, kernel_initializer="uniform", activation=activation_fn, kernel_constraint=maxnorm(3)))
         model.add(Dropout(dropout_param))
         model.add(BatchNormalization())
         model.add(GaussianNoise(Gaussian_noise))
 
-        model.add(Dense(128, init="uniform", activation=activation_fn, W_constraint=maxnorm(3)))
+        model.add(Dense(32, kernel_initializer="uniform", activation=activation_fn, kernel_constraint=maxnorm(3)))
         model.add(Dropout(dropout_param))
         model.add(BatchNormalization())
         model.add(GaussianNoise(Gaussian_noise))
 
-        model.add(Dense(128, init="uniform", activation=activation_fn, W_constraint=maxnorm(3)))
-        model.add(Dropout(dropout_param))
-        model.add(BatchNormalization())
-        model.add(GaussianNoise(Gaussian_noise))
-
-        model.add(Dense(128, init="uniform", activation=activation_fn, W_constraint=maxnorm(3)))
-        model.add(Dropout(dropout_param))
-        model.add(BatchNormalization())
-        model.add(GaussianNoise(Gaussian_noise))
-
-        model.add(Dense(16, init="uniform", activation=activation_fn, W_constraint=maxnorm(3)))
-        model.add(Dropout(dropout_param))
-        model.add(BatchNormalization())
-        model.add(GaussianNoise(Gaussian_noise))
-
-        model.add(Dense(2, activation="softmax", init="normal"))
+        model.add(Dense(2, activation="softmax", kernel_initializer="normal"))
         model.compile(loss="categorical_crossentropy", optimizer=adam, metrics=["accuracy"])
 
         return model
@@ -542,7 +541,7 @@ class OSMTruncMeta(with_metaclass(ModelMetaClass, KerasClassifier)):
         binary_labels = np_utils.to_categorical(index_list)
 
         hist = self.model.fit(self.input_probability(self.data.training()), binary_labels,
-                              validation_split=self.args.holdOut, nb_epoch=epoch, verbose=1)
+                              validation_split=self.args.holdOut, epochs=epoch, verbose=1)
 
         self.train_history("model_aux.csv", hist.history, epoch)
 

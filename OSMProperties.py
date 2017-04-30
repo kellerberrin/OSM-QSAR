@@ -60,7 +60,9 @@ class OSMGenerateData(object):
         self.dragon_truncation_rank = 100
         self.trunc_dragon = self.truncated_dragon()
         self.max_atoms = self.check_smiles(self.data)
-        self.generate_coulomb_matrices()
+
+        if self.args.coulombFlag:
+            self.generate_coulomb_matrices()
 
         self.generate_fields()
 
@@ -133,36 +135,36 @@ class OSMGenerateData(object):
 
         self.log.info("Generating Coulomb Matrices, may take a few moments ...")
 
-        matrix_featurizer = CoulombMatrix(self.max_atoms)
+        matrix_featurizer = CoulombMatrix(self.max_atoms, randomize=False, n_samples=1)
         eigen_featurizer = CoulombMatrixEig(self.max_atoms)
 
         matrices = []
-        rand_matrices = []
-        rand_arrays = []
         smiles = []
         arrays = []
         eigenarrays = []
+        num_confs = 1
 
         for index, row in self.data.iterrows():
             mol = Chem.MolFromSmiles(row["SMILE"])
             Chem.AddHs(mol)
-            if AllChem.EmbedMolecule(mol) != 0:
-                self.log.warning("Coulomb Matrix - unable to generate conformer for smile: %s", row["SMILE"])
-            else:
-                AllChem.UFFOptimizeMolecule(mol)
+            ids = AllChem.EmbedMultipleConfs(mol, numConfs=num_confs)
+            if len(ids) != num_confs:
+                ids = AllChem.EmbedMultipleConfs(mol, numConfs=num_confs, ignoreSmoothingFailures=True)
+                if len(ids) != num_confs:
+                    self.log.warning("Coulomb Matrix - unable to generate %d conformer(s) for smile: %s"
+                                     , num_confs, row["SMILE"])
+
+            if len(ids) == num_confs:
+                for id in ids:
+                    AllChem.UFFOptimizeMolecule(mol, confId=id)
                 matrix = matrix_featurizer.coulomb_matrix(mol)
-                rand_matrix = matrix_featurizer.randomize_coulomb_matrix(matrix[0])
-                matrices.append(matrix[0])
-                rand_matrices.append(rand_matrix[0])
+                matrices.append(matrix)
                 arrays.append(matrix[0].flatten())
-                rand_arrays.append(rand_matrix[0].flatten())
                 smiles.append(row["SMILE"])
                 eigenvalues = eigen_featurizer.featurize([mol])
                 eigenarrays.append(eigenvalues[0].flatten())
 
-
-        pd_dict = { "SMILE": smiles, "COULOMB": matrices, "COULOMB_ARRAY": arrays,
-                    "COULOMB_RAND": rand_matrices, "COULOMB_RAND_ARRAY" : rand_arrays, "COULOMB_EIGEN" : eigenarrays }
+        pd_dict = { "SMILE": smiles, "COULOMB": matrices, "COULOMB_ARRAY": arrays, "COULOMB_EIGEN" : eigenarrays }
         coulomb_frame = pd.DataFrame(pd_dict)
 
         before_ids = list(self.data["ID"])

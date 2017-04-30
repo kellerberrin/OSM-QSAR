@@ -38,12 +38,11 @@ from keras.layers import Dense
 from keras.layers import Dropout
 from keras.layers.noise import GaussianDropout, GaussianNoise
 from keras.layers import normalization, BatchNormalization
-from keras.regularizers import l2, l1l2, activity_l2
+from keras.regularizers import l2, l1_l2
 from keras.models import load_model
 from keras.constraints import maxnorm
 from keras.optimizers import SGD, Adam, Adagrad, Adadelta
 from keras.utils import np_utils
-from keras.initializations import uniform, normal, he_normal, orthogonal
 
 #from keras.utils.visualize_util import plot
 import keras.backend as backend
@@ -89,24 +88,24 @@ class KlassIonMaccs(with_metaclass(ModelMetaClass, KlassSequential)):
 
         adam = Adam(lr=0.0005, beta_1=0.9, beta_2=0.999, epsilon=5e-09)
 
-        model.add(Dense(2048, input_dim=167, init="uniform", activation="relu"
-                        , activity_regularizer=l1l2(l1_param, l2_param), W_constraint=maxnorm(3)))
+        model.add(Dense(2048, input_dim=167, kernel_initializer="uniform", activation="relu"
+                        , activity_regularizer=l1_l2(l1_param, l2_param), kernel_constraint=maxnorm(3)))
         model.add(Dropout(dropout_param))
         model.add(BatchNormalization())
-        model.add(Dense(2048, init="uniform", activation="relu"
-                        , activity_regularizer=l1l2(l1_param,l2_param), W_constraint=maxnorm(3)))
+        model.add(Dense(2048, kernel_initializer="uniform", activation="relu"
+                        , activity_regularizer=l1_l2(l1_param,l2_param), kernel_constraint=maxnorm(3)))
         model.add(Dropout(dropout_param))
         model.add(BatchNormalization())
-        model.add(Dense(512, init="uniform", activation="relu"
-                        , activity_regularizer=l1l2(l1_param, l2_param), W_constraint=maxnorm(3)))
+        model.add(Dense(512, kernel_initializer="uniform", activation="relu"
+                        , activity_regularizer=l1_l2(l1_param, l2_param), kernel_constraint=maxnorm(3)))
         model.add(Dropout(dropout_param))
         model.add(BatchNormalization())
-        model.add(Dense(64, init="uniform", activation="relu"
-                        , activity_regularizer=l1l2(l1_param, l2_param), W_constraint=maxnorm(3)))
+        model.add(Dense(64, kernel_initializer="uniform", activation="relu"
+                        , activity_regularizer=l1_l2(l1_param, l2_param), kernel_constraint=maxnorm(3)))
 
         model.add(Dropout(dropout_param))
         model.add(BatchNormalization())
-        model.add(Dense(3, activation = "softmax", init="normal"))
+        model.add(Dense(3, activation = "softmax", kernel_initializer="normal"))
         model.compile(loss="categorical_crossentropy", optimizer=adam, metrics=["accuracy"])
 
         return model
@@ -144,27 +143,38 @@ class KlassIonMorgan(with_metaclass(ModelMetaClass, KlassSequential)):
         l2_param = 0.0
         l1_param = 0.0
         dropout_param = 0.0
+        Gaussian_noise = 1
+        initializer = "uniform"
+        activation_func = "relu"
 
         adam = Adam(lr=0.0005, beta_1=0.9, beta_2=0.999, epsilon=5e-09)
 
-        model.add(Dense(2048, input_dim=2048, init="uniform", activation="relu"
-                        , activity_regularizer=l1l2(l1_param, l2_param), W_constraint=maxnorm(3)))
+
+        model.add(Dense(2048, input_dim=2048, kernel_initializer=initializer, activation=activation_func
+                        , activity_regularizer=l1_l2(l1_param, l2_param), kernel_constraint=maxnorm(3)))
         model.add(Dropout(dropout_param))
         model.add(BatchNormalization())
-        model.add(Dense(2048, init="uniform", activation="relu"
-                        , activity_regularizer=l1l2(l1_param,l2_param), W_constraint=maxnorm(3)))
+        model.add(GaussianNoise(Gaussian_noise))
+
+        model.add(Dense(2048, kernel_initializer=initializer, activation=activation_func
+                        , activity_regularizer=l1_l2(l1_param, l2_param), kernel_constraint=maxnorm(3)))
         model.add(Dropout(dropout_param))
         model.add(BatchNormalization())
-        model.add(Dense(512, init="uniform", activation="relu"
-                        , activity_regularizer=l1l2(l1_param, l2_param), W_constraint=maxnorm(3)))
+        model.add(GaussianNoise(Gaussian_noise))
+
+        model.add(Dense(512, kernel_initializer=initializer, activation=activation_func
+                        , activity_regularizer=l1_l2(l1_param, l2_param), kernel_constraint=maxnorm(3)))
         model.add(Dropout(dropout_param))
         model.add(BatchNormalization())
-        model.add(Dense(64, init="uniform", activation="relu"
-                        , activity_regularizer=l1l2(l1_param, l2_param), W_constraint=maxnorm(3)))
+        model.add(GaussianNoise(Gaussian_noise))
+
+        model.add(Dense(64, kernel_initializer=initializer, activation=activation_func
+                        , activity_regularizer=l1_l2(l1_param, l2_param), kernel_constraint=maxnorm(3)))
 
         model.add(Dropout(dropout_param))
         model.add(BatchNormalization())
-        model.add(Dense(3, activation = "softmax", init="normal"))
+
+        model.add(Dense(3, activation = "softmax", kernel_initializer="normal"))
         model.compile(loss="categorical_crossentropy", optimizer=adam, metrics=["accuracy"])
 
         return model
@@ -204,24 +214,24 @@ class KlassBinaryMaccs(with_metaclass(ModelMetaClass, KlassSequential)):
 
         adam = Adam(lr=0.0005, beta_1=0.9, beta_2=0.999, epsilon=5e-09)
 
-        model.add(Dense(2048, input_dim=167, init="uniform", activation="relu"
-                        , activity_regularizer=l1l2(l1_param, l2_param), W_constraint=maxnorm(3)))
+        model.add(Dense(2048, input_dim=167, kernel_initializer="uniform", activation="relu"
+                        , activity_regularizer=l1_l2(l1_param, l2_param), kernel_constraint=maxnorm(3)))
         model.add(Dropout(dropout_param))
         model.add(BatchNormalization())
-        model.add(Dense(2048, init="uniform", activation="relu"
-                        , activity_regularizer=l1l2(l1_param, l2_param), W_constraint=maxnorm(3)))
+        model.add(Dense(2048, kernel_initializer="uniform", activation="relu"
+                        , activity_regularizer=l1_l2(l1_param, l2_param), kernel_constraint=maxnorm(3)))
         model.add(Dropout(dropout_param))
         model.add(BatchNormalization())
-        model.add(Dense(512, init="uniform", activation="relu"
-                        , activity_regularizer=l1l2(l1_param, l2_param), W_constraint=maxnorm(3)))
+        model.add(Dense(512, kernel_initializer="uniform", activation="relu"
+                        , activity_regularizer=l1_l2(l1_param, l2_param), kernel_constraint=maxnorm(3)))
         model.add(Dropout(dropout_param))
         model.add(BatchNormalization())
-        model.add(Dense(64, init="uniform", activation="relu"
-                        , activity_regularizer=l1l2(l1_param, l2_param), W_constraint=maxnorm(3)))
+        model.add(Dense(64, kernel_initializer="uniform", activation="relu"
+                        , activity_regularizer=l1_l2(l1_param, l2_param), kernel_constraint=maxnorm(3)))
 
         model.add(Dropout(dropout_param))
         model.add(BatchNormalization())
-        model.add(Dense(2, activation="softmax", init="normal"))
+        model.add(Dense(2, activation="softmax", kernel_initializer="normal"))
         model.compile(loss="categorical_crossentropy", optimizer=adam, metrics=["accuracy"])
 
         return model
@@ -263,24 +273,24 @@ class KlassBinaryMorgan(with_metaclass(ModelMetaClass, KlassSequential)):
 
         adam = Adam(lr=0.0005, beta_1=0.9, beta_2=0.999, epsilon=5e-09)
 
-        model.add(Dense(2048, input_dim=2048, init="uniform", activation="relu"
-                        , activity_regularizer=l1l2(l1_param, l2_param), W_constraint=maxnorm(3)))
+        model.add(Dense(2048, input_dim=2048, kernel_initializer="uniform", activation="relu"
+                        , activity_regularizer=l1_l2(l1_param, l2_param), kernel_constraint=maxnorm(3)))
         model.add(Dropout(dropout_param))
         model.add(BatchNormalization())
-        model.add(Dense(2048, init="uniform", activation="relu"
-                        , activity_regularizer=l1l2(l1_param, l2_param), W_constraint=maxnorm(3)))
+        model.add(Dense(2048, kernel_initializer="uniform", activation="relu"
+                        , activity_regularizer=l1_l2(l1_param, l2_param), kernel_constraint=maxnorm(3)))
         model.add(Dropout(dropout_param))
         model.add(BatchNormalization())
-        model.add(Dense(512, init="uniform", activation="relu"
-                        , activity_regularizer=l1l2(l1_param, l2_param), W_constraint=maxnorm(3)))
+        model.add(Dense(512, kernel_initializer="uniform", activation="relu"
+                        , activity_regularizer=l1_l2(l1_param, l2_param), kernel_constraint=maxnorm(3)))
         model.add(Dropout(dropout_param))
         model.add(BatchNormalization())
-        model.add(Dense(64, init="uniform", activation="relu"
-                        , activity_regularizer=l1l2(l1_param, l2_param), W_constraint=maxnorm(3)))
+        model.add(Dense(64, kernel_initializer="uniform", activation="relu"
+                        , activity_regularizer=l1_l2(l1_param, l2_param), kernel_constraint=maxnorm(3)))
 
         model.add(Dropout(dropout_param))
         model.add(BatchNormalization())
-        model.add(Dense(2, activation="softmax", init="normal"))
+        model.add(Dense(2, activation="softmax", kernel_initializer="normal"))
         model.compile(loss="categorical_crossentropy", optimizer=adam, metrics=["accuracy"])
 
         return model

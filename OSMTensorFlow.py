@@ -218,7 +218,7 @@ class DTensorFlowSimpleClassifier(with_metaclass(ModelMetaClass, TensorFlowClass
         # define the model data view.
         # Define the model variable types here. Documented in "OSMModelData.py".
         self.arguments = { "DEPENDENT" : { "VARIABLE" : "ION_ACTIVITY", "SHAPE" : [3], "TYPE": OSMModelData.CLASSES }
-                    , "INDEPENDENT" : [ { "VARIABLE" : "DRAGON", "SHAPE": [1552], "TYPE": OSMModelData.FLOAT64 } ] }
+                    , "INDEPENDENT" : [ { "VARIABLE" : "DRAGON", "SHAPE": [1666], "TYPE": OSMModelData.FLOAT64 } ] }
 
     # These functions need to be re-defined in all classifier model classes.
 
@@ -235,8 +235,8 @@ class DTensorFlowSimpleClassifier(with_metaclass(ModelMetaClass, TensorFlowClass
     def model_define(self):
 
         # Create the model
-        ph_input = tf.placeholder(tf.float32, [None, 1552])
-        W = tf.Variable(tf.zeros([1552, 3]), name="Weights")
+        ph_input = tf.placeholder(tf.float32, [None, 1666])
+        W = tf.Variable(tf.zeros([1666, 3]), name="Weights")
         b = tf.Variable(tf.zeros([3]), name="Bias")
         ph_predict = tf.matmul(ph_input, W) + b
 
@@ -317,8 +317,8 @@ class TF_DNN_Classifier(with_metaclass(ModelMetaClass, TensorFlowClassifier)):
 
         # define the model data view.
         # Define the model variable types here. Documented in "OSMModelData.py".
-        self.arguments = { "DEPENDENT" : { "VARIABLE" : "ION_ACTIVITY", "SHAPE" : [2], "TYPE": OSMModelData.CLASSES }
-                    , "INDEPENDENT" : [ { "VARIABLE" : "MORGAN2048_4", "SHAPE": [1552], "TYPE": OSMModelData.FLOAT64 } ] }
+        self.arguments = { "DEPENDENT" : { "VARIABLE" : "ION_ACTIVITY", "SHAPE" : [3], "TYPE": OSMModelData.CLASSES }
+                    , "INDEPENDENT" : [ { "VARIABLE" : "DRAGON", "SHAPE": [1666], "TYPE": OSMModelData.FLOAT64 } ] }
 
     # These functions need to be re-defined in all classifier model classes.
 
@@ -337,11 +337,11 @@ class TF_DNN_Classifier(with_metaclass(ModelMetaClass, TensorFlowClassifier)):
 
     def model_define_directory(self, directory):
         # Specify that all features have real-value data
-        feature_columns = [tf.contrib.layers.real_valued_column("", dimension=1552)]
+        feature_columns = [tf.contrib.layers.real_valued_column("", dimension=1666)]
         # Build 3 layer DNN.
         model = tf.contrib.learn.DNNClassifier(feature_columns=feature_columns,
-                                               hidden_units=[50, 50, 10],
-                                               n_classes=2,
+                                               hidden_units=[4096, 4096, 2048,1024,512,256,64,16,3],
+                                               n_classes=3,
                                                model_dir = directory)
         return model
 

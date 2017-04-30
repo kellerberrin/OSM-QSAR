@@ -41,7 +41,7 @@ import OSMSKLearnRegress
 import OSMSKLearnClassify
 import OSMTensorFlow
 
-__version__ = "0.2"
+__version__ = "0.3"
 
 # ===================================================================================================
 # A utility class to parse the program runtime arguments
@@ -152,6 +152,9 @@ class ExecEnv(object):
                                   ' if it does not exist.'
                                   ' Warning - the "--extend" flag may substantially increase OSM_QSAR runtime.'))
 
+        # --coulomb
+        parser.add_argument("--coulomb", dest="coulombFlag", action="store_true",
+                            help=(' The "--coulomb" flag generates Coulomb Matrices (uses deepchem).'))
         # --clean
         parser.add_argument("--clean", dest="cleanFlag", action="store_true",
                             help=('Deletes all files in the "test" and "train" subdirectories of the model '

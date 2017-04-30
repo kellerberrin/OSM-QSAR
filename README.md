@@ -62,7 +62,7 @@ environment if you prefer (install instructions are the same).
 
 >activate yourenvname
 
-(a) Install TENSORFLOW
+(a) Install TENSORFLOW (non GPU version)
 
 (yourenvname) >conda install -c conda-forge tensorflow
 
@@ -72,11 +72,8 @@ environment if you prefer (install instructions are the same).
 
 (c) Install KERAS
 
-A quick review of the conda package repository shows that the version of KERAS
-there is slightly out of date (Feb 2017). So we will use the python pip package
-manager. This also installs THEANO.
 
-(yourenvname) >python -m pip install keras
+(yourenvname) >conda install -c conda-forge keras=2.0.2
 
 4. Download the OSM_QSAR files from GitHub (https://github.com/kellerberrin/OSM-QSAR) 
 and place the files in a directory of you choice,

@@ -37,7 +37,7 @@ from keras.models import Sequential
 from keras.layers import Dense
 from keras.layers import Dropout
 from keras.layers import normalization, BatchNormalization
-from keras.regularizers import l2, l1l2, activity_l2
+from keras.regularizers import l2, l1_l2
 from keras.models import load_model
 from keras.constraints import maxnorm
 from keras.optimizers import SGD, Adam, Adagrad, Adadelta
@@ -200,7 +200,7 @@ class KlassSequential(with_metaclass(ModelMetaClass, KerasClassifier)):
         binary_labels = np_utils.to_categorical(index_list)
 
         hist = self.model.fit(self.data.training().input_data(), binary_labels, validation_split=self.args.holdOut
-                              , nb_epoch=epoch, batch_size=100, verbose=1)
+                              , epochs=epoch, batch_size=100, verbose=1)
 
         self.train_history("model_aux.csv", hist.history, epoch)
 

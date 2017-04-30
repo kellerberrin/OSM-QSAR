@@ -291,16 +291,32 @@ class AccessData(object): # The adapter class actually used to return data to th
 
     def input_data(self):
         if len(self.model_args["INDEPENDENT"]) == 1:
-            matrix = np.matrix(self.data[self.model_args["INDEPENDENT"][0]["VARIABLE"]].tolist())
-            return matrix # numpy matrix.
+
+            return self.get_tensor(self.model_args["INDEPENDENT"][0]["VARIABLE"])
+
         elif len(self.model_args["INDEPENDENT"]) > 1:
-            matrix_dict = {}
+
+            tensor_dict = {}
             for var in self.model_args["INDEPENDENT"]:
-                matrix = np.matrix(self.data[var["VARIABLE"]].tolist())
-                matrix_dict[var["VARIABLE"]] = matrix
-            return matrix_dict   # return as a dictionary
+                tensor = self.get_tensor(var["VARIABLE"])
+                tensor_dict[var["VARIABLE"]] = tensor
+
+            return tensor_dict   # return as a dictionary
+
         else: # zero independent arguments - error
             self.log.error("No independent variables defined for model.")
             sys.exit()
 
-
+    def get_tensor(self, var_name):
+        # convenience routine to convert a pandas column to a tensor
+        data = self.data[var_name]
+        data_list = data.tolist()
+        if len(data_list) == 0:
+            self.log.error("X (input) Variable: %s has zero rows", var_name)
+            sys.exit()
+        data_shape = data_list[0].shape
+        array_shape = (len(data_list),) + data_shape
+        tensor = np.ndarray(shape=array_shape)
+        for i, x in enumerate(data_list):
+            tensor[i] = x
+        return tensor

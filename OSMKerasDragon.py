@@ -380,4 +380,129 @@ class TruncIonDragon(with_metaclass(ModelMetaClass, KlassSequential)):
 
         return model
 
+# ===============================================================================
+# Keras Pattern Classifier, fits ION ACTIVITY to the DRAGON data.
+# ===============================================================================
+
+class TruncBinDragon(with_metaclass(ModelMetaClass, KlassSequential)):
+    def __init__(self, args, log):
+        super(TruncBinDragon, self).__init__(args, log)
+
+        # Define the model data view.
+        # Define the model variable types here. Documented in "OSMModelData.py".
+        self.arguments = {"DEPENDENT": {"VARIABLE": "ION_ACTIVE", "SHAPE": [2], "TYPE": OSMModelData.CLASSES}
+            , "INDEPENDENT": [{"VARIABLE": "TRUNC_DRAGON", "SHAPE": [100], "TYPE": OSMModelData.FLOAT64}]}
+
+    # These functions need to be re-defined in all classifier model classes.
+
+    def model_name(self):
+        return "TRUNC_DRAGON > BINARY ION_ACTIVE Classifier"
+
+    def model_postfix(self):  # Must be unique for each model.
+        return "bin_td"
+
+    def model_description(self):
+        return ("A KERAS (TensorFlow) multi-layer Neural Network class classification model. \n"
+                "This classifier analyzes the TRUNC_DRAGON data against BINARY ION_ACTIVE")
+
+    def model_analytics(self, data):
+
+        self.log.info("Calculating Neural Network TRUNC_DRAGON field sensitivity, may take a few moments....")
+        func = lambda  x: self.model.predict_proba(x, verbose=0)
+        Sens = OSMDragonSensitivity(self.args, self.log)
+
+        result_dict = {}
+
+        if self.args.extendFlag and False:
+
+            self.log.info("Analytics - Calculating Field Step (1Q) Sensitivity")
+            dragon_1q_sensitivity = Sens.calc_dragon_step_sensitivity(func, data.input_data(), 10, 25,
+                                                                    self.raw_data.get_truncated_dragon_fields())
+            result_dict["1Q_SENSITIVITY"] = dragon_1q_sensitivity
+
+
+        if self.args.extendFlag:
+
+            self.log.info("Analytics - Calculating Field Step (Median) Sensitivity")
+            dragon_median_sensitivity = Sens.calc_dragon_step_sensitivity(func, data.input_data(), 10, 50,
+                                                                    self.raw_data.get_truncated_dragon_fields())
+            result_dict["MEDIAN_SENSITIVITY"] = dragon_median_sensitivity
+
+
+        if self.args.extendFlag and False:
+
+            self.log.info("Analytics - Calculating Field Step (3Q) Sensitivity")
+            dragon_3q_sensitivity = Sens.calc_dragon_step_sensitivity(func, data.input_data(), 10, 75,
+                                                                    self.raw_data.get_truncated_dragon_fields())
+            result_dict["3Q_SENSITIVITY"] =  dragon_3q_sensitivity
+
+        if self.args.extendFlag:
+
+            self.log.info("Analytics - Calculating Field Derivatives")
+            dragon_derivative = Sens.calc_dragon_derivative(func, data.input_data(), 0.01,
+                                                            self.raw_data.get_truncated_dragon_fields())
+            result_dict["DERIVATIVE"] =  dragon_derivative
+
+        if self.args.extendFlag and False:
+
+            self.log.info("Analytics - Calculating Field Partial Derivatives")
+            dragon_partial = Sens.calc_dragon_partial(func, data.input_data(), 0.01,
+                                                    self.raw_data.get_truncated_dragon_fields())
+            result_dict["PARTIAL"] = dragon_partial
+
+        return result_dict
+
+    def model_define(self):  # Defines the modified sequential class with regularizers defined.
+
+        model = Sequential()
+        l2_param = 0.0
+        l1_param = 0.0
+        dropout_param = 0.5
+        Gaussian_noise = 1
+        initializer = "uniform"
+        activation_func = "tanh"
+
+        adam = Adam(lr=0.0005, beta_1=0.9, beta_2=0.999, epsilon=5e-09)
+
+        model.add(Dense(1024, input_dim=100, kernel_initializer=initializer, activation=activation_func
+                        , activity_regularizer=l1_l2(l1_param, l2_param), kernel_constraint=maxnorm(3)))
+        model.add(Dropout(dropout_param))
+        model.add(BatchNormalization())
+        model.add(GaussianNoise(Gaussian_noise))
+
+        model.add(Dense(1024, kernel_initializer=initializer, activation=activation_func
+                        , activity_regularizer=l1_l2(l1_param, l2_param), kernel_constraint=maxnorm(3)))
+        model.add(Dropout(dropout_param))
+        model.add(BatchNormalization())
+        model.add(GaussianNoise(Gaussian_noise))
+
+        model.add(Dense(1024, kernel_initializer=initializer, activation=activation_func
+                        , activity_regularizer=l1_l2(l1_param, l2_param), kernel_constraint=maxnorm(3)))
+        model.add(Dropout(dropout_param))
+        model.add(BatchNormalization())
+        model.add(GaussianNoise(Gaussian_noise))
+
+        model.add(Dense(512, kernel_initializer=initializer, activation=activation_func
+                        , activity_regularizer=l1_l2(l1_param, l2_param), kernel_constraint=maxnorm(3)))
+        model.add(Dropout(dropout_param))
+        model.add(BatchNormalization())
+        model.add(GaussianNoise(Gaussian_noise))
+
+        model.add(Dense(512, kernel_initializer=initializer, activation=activation_func
+                        , activity_regularizer=l1_l2(l1_param, l2_param), kernel_constraint=maxnorm(3)))
+        model.add(Dropout(dropout_param))
+        model.add(BatchNormalization())
+        model.add(GaussianNoise(Gaussian_noise))
+
+        model.add(Dense(64, kernel_initializer=initializer, activation=activation_func
+                        , activity_regularizer=l1_l2(l1_param, l2_param), kernel_constraint=maxnorm(3)))
+
+        model.add(Dropout(dropout_param))
+        model.add(BatchNormalization())
+        model.add(GaussianNoise(Gaussian_noise))
+
+        model.add(Dense(2, activation="softmax", kernel_initializer=initializer))
+        model.compile(loss="categorical_crossentropy", optimizer=adam, metrics=["accuracy"])
+
+        return model
 

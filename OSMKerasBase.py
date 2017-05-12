@@ -178,7 +178,7 @@ class KlassSequential(with_metaclass(ModelMetaClass, KerasClassifier)):
         index_list = []
         for a_class in class_list:
             index_list.append(classes.index(a_class))
-        binary_labels = np_utils.to_categorical(index_list)
+        binary_labels = np_utils.to_categorical(index_list, len(classes))
         score = self.model.evaluate(data.input_data(), binary_labels, verbose=0)
         return score
 
@@ -191,6 +191,11 @@ class KlassSequential(with_metaclass(ModelMetaClass, KerasClassifier)):
 
         # shuffle the hold out validation data each epoch.
 #        X, y = shuffle(self.data.training().input_data(), self.data.training().target_data())
+
+        # If the cross-validation flag is set then permute the training and test set.
+
+        if self.args.crossVal > 0:
+            self.data.crossval_train_test(self.args.crossVal)
 
         classes = self.model_enumerate_classes()
         class_list = self.data.training().target_data()

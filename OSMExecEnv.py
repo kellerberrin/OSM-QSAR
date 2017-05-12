@@ -36,6 +36,7 @@ import OSMKerasFingerprint
 import OSMKerasDragon
 import OSMKerasCoulomb
 import OSMKerasMeta
+import OSMKerasEnsemble
 import OSMTemplate
 import OSMSKLearnRegress
 import OSMSKLearnClassify
@@ -184,6 +185,11 @@ class ExecEnv(object):
                                   '"--classify mod --load OSMClassifier -- epoch 1000 --train 0"'
                                   ' loads the KERAS "mod" model from "./<WorkDir>/mod/OSMClassifier_1000.krs"'
                                   ' and generates model statistics and graphics without further training'))
+
+        parser.add_argument("--crossval", dest="crossVal", default=0.0, type=float,
+                            help=(" Cross validate the test/training set for every checkpoint"
+                                  " this is done by shuffling data into a training and test set."
+                                  " The float number is the proportion of the data that is held out for testing."))
 
         parser.add_argument("--holdout", dest="holdOut", default=0.0, type=float,
                             help=(" The proportion of the training dataset in the range [0, 1] that is used for"

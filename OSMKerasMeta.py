@@ -51,7 +51,7 @@ from OSMBase import ModelMetaClass  # The virtual model class.
 from OSMKerasBase import KerasClassifier
 from OSMKerasDragon import KlassBinaryDragon, KlassIonDragon, TruncIonDragon
 from OSMKerasFingerprint import  KlassIonMaccs, KlassIonMorgan, KlassBinaryMorgan
-from OSMKerasCoulomb import CoulombMatrix
+from OSMKerasCoulomb import CoulombMatrix, CoulombConvolution
 from OSMModelData import OSMModelData
 from OSMSKLearnClassify import OSMSKLearnLOGC, OSMSKLearnNBC  # All The SKLearn Classifiers for the meta NN
 
@@ -73,7 +73,8 @@ class MetaSequential(with_metaclass(ModelMetaClass, KerasClassifier)):
                               {"VARIABLE": "MORGAN2048_1", "SHAPE": [2048], "TYPE": OSMModelData.FLOAT64},
                               {"VARIABLE": "MACCFP", "SHAPE": [167], "TYPE": OSMModelData.FLOAT64},
                               {"VARIABLE": "TRUNC_DRAGON", "SHAPE": [100], "TYPE": OSMModelData.FLOAT64},
-                              {"VARIABLE": "COULOMB_ARRAY", "SHAPE": [2916], "TYPE": OSMModelData.FLOAT64}]}
+                              {"VARIABLE": "COULOMB_ARRAY", "SHAPE": [2916], "TYPE": OSMModelData.FLOAT64},
+                              {"VARIABLE": "COULOMB", "SHAPE": None, "TYPE": OSMModelData.FLOAT64}]}
 
 
         self.model_define_meta(args, log)
@@ -102,9 +103,16 @@ class MetaSequential(with_metaclass(ModelMetaClass, KerasClassifier)):
         ion_c_args.dependVar = "ION_ACTIVITY"
         ion_c_args.train = 0
         ion_c_args.epoch = 100
-        ion_c_args.loadFilename = os.path.join(ion_c_args.postfixDirectory, "COULOMB")
-        self.dnn_coulomb = CoulombMatrix(ion_c_args, log)
+        ion_c_args.loadFilename = os.path.join(ion_c_args.postfixDirectory, "COULOMB_ARRAY")
+        self.dnn_coulomb_array = CoulombMatrix(ion_c_args, log)
 
+        ion_cc_args = copy.deepcopy(args) #ensure that args cannot be side-swiped.
+        ion_cc_args.indepList = ["COULOMB"]
+        ion_cc_args.dependVar = "ION_ACTIVITY"
+        ion_cc_args.train = 0
+        ion_cc_args.epoch = 200
+        ion_cc_args.loadFilename = os.path.join(ion_c_args.postfixDirectory, "COULOMB_CONV")
+        self.dnn_coulomb_conv = CoulombConvolution(ion_cc_args, log)
 
         binion_d_args = copy.deepcopy(args) #ensure that args cannot be side-swiped.
         binion_d_args.indepList = ["DRAGON"]
@@ -169,7 +177,8 @@ class MetaSequential(with_metaclass(ModelMetaClass, KerasClassifier)):
         self.logc.initialize(self.raw_data)
         self.dnn_dragon.initialize(self.raw_data)
         self.dnn_trunc_dragon.initialize(self.raw_data)
-        self.dnn_coulomb.initialize(self.raw_data)
+        self.dnn_coulomb_array.initialize(self.raw_data)
+        self.dnn_coulomb_conv.initialize(self.raw_data)
         self.dnn_morgan1.initialize(self.raw_data)
         self.dnn_morgan5.initialize(self.raw_data)
         self.dnn_top.initialize(self.raw_data)
@@ -196,17 +205,17 @@ class MetaSequential(with_metaclass(ModelMetaClass, KerasClassifier)):
     def model_arch(self):  # Defines the modified sequential class with regularizers defined.
 
         model = Sequential()
-        dropout_param = 0.0
+        dropout_param = 0.2
+        activation = "relu"
+        initializer = "uniform"
 
         adam = Adam(lr=0.0005, beta_1=0.9, beta_2=0.999, epsilon=5e-09)
 
-        model.add(Dense(16, input_dim=2, kernel_initializer="uniform", activation="relu", kernel_constraint=maxnorm(3)))
+        model.add(Dense(8, input_dim=2, kernel_initializer=initializer, activation=activation, kernel_constraint=maxnorm(3)))
         model.add(Dropout(dropout_param))
-        model.add(Dense(32, kernel_initializer="uniform", activation="relu", kernel_constraint=maxnorm(3)))
+        model.add(Dense(16,  kernel_initializer=initializer, activation=activation, kernel_constraint=maxnorm(3)))
         model.add(Dropout(dropout_param))
-        model.add(Dense(32, init="uniform", activation="relu", kernel_constraint=maxnorm(3)))
-        model.add(Dropout(dropout_param))
-        model.add(Dense(16, kernel_initializer="uniform", activation="relu", kernel_constraint=maxnorm(3)))
+        model.add(Dense(16,  kernel_initializer=initializer, activation=activation, kernel_constraint=maxnorm(3)))
         model.add(Dropout(dropout_param))
         model.add(Dense(2, activation = "softmax", kernel_initializer="normal"))
         model.compile(loss="categorical_crossentropy", optimizer=adam, metrics=["accuracy"])
@@ -265,8 +274,10 @@ class MetaSequential(with_metaclass(ModelMetaClass, KerasClassifier)):
         dnn_dragon_prob = np.asarray(dnn_dragon_prob)
         dnn_trunc_dragon_prob = self.dnn_trunc_dragon.model.predict_proba(data.input_data()["TRUNC_DRAGON"])
         dnn_trunc_dragon_prob = np.asarray(dnn_trunc_dragon_prob)
-        dnn_coulomb_prob = self.dnn_coulomb.model.predict_proba(data.input_data()["COULOMB_ARRAY"])
-        dnn_coulomb_prob = np.asarray(dnn_coulomb_prob)
+        dnn_coulomb_array_prob = self.dnn_coulomb_array.model.predict_proba(data.input_data()["COULOMB_ARRAY"])
+        dnn_coulomb_array_prob = np.asarray(dnn_coulomb_array_prob)
+        dnn_coulomb_conv_prob = self.dnn_coulomb_conv.model.predict_proba(data.input_data()["COULOMB"])
+        dnn_coulomb_conv_prob = np.asarray(dnn_coulomb_conv_prob)
         dnn_m1_prob = self.dnn_morgan1.model.predict_proba(data.input_data()["MORGAN2048_1"])
         dnn_m1_prob = np.asarray(dnn_m1_prob)
         dnn_m5_prob = self.dnn_morgan5.model.predict_proba(data.input_data()["MORGAN2048_5"])
@@ -283,7 +294,7 @@ class MetaSequential(with_metaclass(ModelMetaClass, KerasClassifier)):
 #        print("dragon", dnn_dragon_prob.shape, "ec50", dnn_ec50_prob.shape)
 #        print("dragon", dnn_dragon_prob[:,0].shape, "ec50", dnn_ec50_prob[:,0].shape)
 #        prob = np.column_stack((dnn_dragon_prob[:,0], logc_prob[:,0]))
-        prob = np.column_stack((dnn_trunc_dragon_prob[:,0], logc_prob[:,0]))
+        prob = np.column_stack((dnn_trunc_dragon_prob[:,0], dnn_ec50_prob[:,0]))
 
 #        print("prob", prob.shape)
 

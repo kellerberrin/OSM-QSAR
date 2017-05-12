@@ -160,7 +160,72 @@ class CoulombConvolution(with_metaclass(ModelMetaClass, KlassSequential)):
         return ("A KERAS (TensorFlow) multi-layer Neural Network class classification model. \n"
                 "This classifier analyzes convolved molecular coulomb matrices against ION_ACTIVITY")
 
-    def model_define(self):  # Defines the modified sequential class with regularizers defined.
+    def model_define(self):
+
+        return self.b_model_define()
+
+    def b_model_define(self):  # Defines the modified sequential class with regularizers defined.
+
+        model = Sequential()
+        l2_param = 0.0
+        l1_param = 0.0
+        dropout_param = 0.3
+        Gaussian_noise = 1
+        initializer = "uniform"
+        activation_func = "relu"
+        kernel_size = (3,3)
+        pool_size = (2,2)
+        filters = 128
+
+        tensor_shape_list = list(self.data.training().input_data().shape)
+        tensor_shape_list.pop(0) # remove rows
+        tensor_shape = tuple(tensor_shape_list)
+
+        info_text = "The 'ion_cc' input tensor shape is {}".format(tensor_shape)
+        self.log.info(info_text)
+
+        adam = Adam(lr=0.0005, beta_1=0.9, beta_2=0.999, epsilon=5e-09)
+
+        model.add(Conv2D(filters=filters, kernel_size=kernel_size, input_shape=tensor_shape, activation=activation_func
+                         , data_format='channels_first', kernel_initializer=initializer))
+        model.add(BatchNormalization())
+        model.add(Dropout(dropout_param))
+        model.add(MaxPooling2D(pool_size=pool_size))
+        model.add(Dropout(dropout_param))
+
+        model.add(Conv2D(filters=filters, kernel_size=kernel_size, activation=activation_func
+                         , kernel_initializer=initializer))
+        model.add(BatchNormalization())
+        model.add(Dropout(dropout_param))
+        model.add(MaxPooling2D(pool_size=pool_size))
+        model.add(Dropout(dropout_param))
+
+        model.add(Conv2D(filters=filters, kernel_size=kernel_size, activation=activation_func
+                         , kernel_initializer=initializer))
+        model.add(BatchNormalization())
+        model.add(Dropout(dropout_param))
+        model.add(MaxPooling2D(pool_size=pool_size))
+        model.add(Dropout(dropout_param))
+
+        model.add(Flatten())
+
+        model.add(Dense(512, activation=activation_func, kernel_constraint=maxnorm(3)
+                        , kernel_initializer=initializer))
+        model.add(BatchNormalization())
+        model.add(Dropout(dropout_param))
+
+        model.add(Dense(512, activation=activation_func, kernel_constraint=maxnorm(3)
+                        , kernel_initializer=initializer))
+        model.add(BatchNormalization())
+        model.add(Dropout(dropout_param))
+
+        model.add(Dense(3, activation='softmax'))
+
+        model.compile(loss="categorical_crossentropy", optimizer=adam, metrics=["accuracy"])
+
+        return model
+
+    def a_model_define(self):  # Defines the modified sequential class with regularizers defined.
 
         model = Sequential()
         l2_param = 0.0

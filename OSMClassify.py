@@ -136,9 +136,18 @@ class OSMClassification(OSMBaseModel):
         else:
             auc_probs = probabilities
 
-        class_auc = roc_auc_score(actual_one_hot, auc_probs, average=None, sample_weight=None)
-        macro_auc = roc_auc_score(actual_one_hot, auc_probs, average="macro", sample_weight=None)
-        micro_auc = roc_auc_score(actual_one_hot, auc_probs, average="micro", sample_weight=None)
+#        print("actual_one_hot", actual_one_hot)
+#        print("auc_probs", auc_probs)
+
+        try:
+            class_auc = roc_auc_score(actual_one_hot, auc_probs, average=None, sample_weight=None)
+            macro_auc = roc_auc_score(actual_one_hot, auc_probs, average="macro", sample_weight=None)
+            micro_auc = roc_auc_score(actual_one_hot, auc_probs, average="micro", sample_weight=None)
+        except ValueError:
+            class_auc = [-1] * len(classes)
+            macro_auc = -1
+            micro_auc = -1
+
 
         if len(classes) == 2 and actual_one_hot.shape[1] == 1:
             mod_class_auc = None

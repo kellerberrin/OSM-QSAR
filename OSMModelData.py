@@ -25,6 +25,7 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
 
 from sklearn.preprocessing import StandardScaler, RobustScaler, MinMaxScaler
+from sklearn.model_selection import ShuffleSplit
 
 import sys
 import numpy as np
@@ -122,15 +123,6 @@ class OSMModelData(object):
         self.check_arg_shape_type(self.model_args["DEPENDENT"])  # raises an exception if any errors.
 
         if self.args.indepList != "default":
-
-            if self.model_args["INDEPENDENT"][0]["SHAPE"] is None:
-
-                if not self.model_args["INDEPENDENT"][0]["SHAPE"][0] is None:
-
-                    if len(self.args.indepList) != len(self.model_args["INDEPENDENT"] ):
-                        self.log.error("Model requires %d independent variables;  %s specified",
-                                       len(self.model_args["INDEPENDENT"]), ",".join(self.args.indepList))
-                    sys.exit()
 
             for idx in range(len(self.model_args["INDEPENDENT"])):
                 self.model_args["INDEPENDENT"][idx]["VARIABLE"] = self.args.indepList[idx]
@@ -272,6 +264,32 @@ class OSMModelData(object):
             self.log.error('Zero records for training and/or testing, check "CLASS" var is either "TEST" or "TRAIN"')
             sys.exit()
         return train, test
+
+    def crossval_train_test(self, test_proportion):
+        self.log.info("Shuffling Cross Valiation - Test Proportion %f", test_proportion)
+
+        self.test = self.model_df.sample(frac=test_proportion, replace=False)
+
+        test_set = set(self.test.index.values)
+        data_set = set(self.model_df.index.values)
+
+        self.train = self.model_df.loc[list(data_set-test_set),:]
+
+        train_set = set(self.train.index.values)
+
+        if data_set != test_set.union(train_set):
+            print("data_set", data_set)
+            print("train_set", train_set)
+            print("test_set", test_set)
+            self.log.error("Problem cross_validating the training and test set")
+            sys.exit()
+
+        self.log.info("Training on %d molecules", self.train.shape[0])
+        self.log.info("Testing (fitting) on %d molecules", self.test.shape[0])
+
+        if self.train.shape[0] == 0 or self.test.shape[0] == 0:
+            self.log.error("Cross Valiation - Zero records for training and/or testing")
+            sys.exit()
 
 
 

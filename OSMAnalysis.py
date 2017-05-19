@@ -182,12 +182,15 @@ class OSMSensitivity(object):
 
     def calc_sens_derivative(self, func, data, step_size):
 
-        reference_data = self.calc_step_median(data)
+        reference_data = self.calc_median(data)
         max_data = self.calc_max(data)
         min_data = self.calc_min(data)
         range_data = self.calc_range(min_data, max_data)
 
-        ref_prob_matrix = func(reference_data)
+        reference_mat = np.matrix(reference_data)
+        reference_mat.reshape(-1)
+
+        ref_prob_matrix = func(reference_mat)
         ref_prob = ref_prob_matrix[0][0]
 
         sensitivity = np.zeros(max_data.shape)
@@ -196,11 +199,11 @@ class OSMSensitivity(object):
 
             if range_data[idx] != 0:
 
-                sens_data = np.asarray(reference_data.copy()).reshape(-1)
+                sens_data = np.asarray(reference_mat.copy()).reshape(-1)
 
                 sens_data[idx] += step_size
 
-                sens_matrix = sens_data.reshape(reference_data.shape)
+                sens_matrix = sens_data.reshape(reference_mat.shape)
 
                 sens_prob_matrix = func(sens_matrix)
 

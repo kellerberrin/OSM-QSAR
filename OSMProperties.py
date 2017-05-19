@@ -35,8 +35,19 @@ from sklearn.decomposition import PCA, KernelPCA
 from rdkit import Chem
 from rdkit.Chem import AllChem
 
-import deepchem as dc
-from deepchem.feat import Featurizer, CoulombMatrix, CoulombMatrixEig
+# Conditional import of deepchem
+
+__deepchem_imported__ = True
+
+try:
+
+    import deepchem as dc
+    from deepchem.feat import Featurizer, CoulombMatrix, CoulombMatrixEig
+
+except ImportError:
+
+    __deepchem_imported__ = False
+
 
 
 # ===================================================================================================
@@ -132,6 +143,10 @@ class OSMGenerateData(object):
 
 
     def generate_coulomb_matrices(self):
+
+        if not __deepchem_imported__:
+            self.log.error("deepchem was not imported or available in this execution environment")
+            sys.exit()
 
         self.log.info("Generating Coulomb Matrices, may take a few moments ...")
 

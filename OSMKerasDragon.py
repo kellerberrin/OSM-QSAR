@@ -160,7 +160,12 @@ class KlassIonDragon(with_metaclass(ModelMetaClass, KlassSequential)):
     def model_analytics(self, data):
 
         self.log.info("Calculating Neural Network DRAGON field sensitivity, may take a few moments....")
-        func = lambda  x: self.model.predict_proba(x, verbose=0)
+
+        def analysis_probability(x):
+            return self.model.predict_proba(x, verbose=0)
+
+        func = analysis_probability
+
         Sens = OSMDragonSensitivity(self.args, self.log)
 
         result_dict = {}

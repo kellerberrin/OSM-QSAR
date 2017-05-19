@@ -186,8 +186,13 @@ class ExecEnv(object):
                                   ' loads the KERAS "mod" model from "./<WorkDir>/mod/OSMClassifier_1000.krs"'
                                   ' and generates model statistics and graphics without further training'))
 
-        parser.add_argument("--crossval", dest="crossVal", default=0.0, type=float,
-                            help=(" Cross validate the test/training set for every checkpoint"
+        parser.add_argument("--crossval", dest="crossVal", default=-1.0, type=float,
+                            help=(" Randomly shuffle the test/training set for every checkpoint"
+                                  " this is done by shuffling data into a training and test set."
+                                  " The float number is the proportion of the data that is held out for testing."))
+
+        parser.add_argument("--shuffle", dest="shuffle", default=-1.0, type=float,
+                            help=(" Randomly shuffle the test/training set at the beginning (only) of model training"
                                   " this is done by shuffling data into a training and test set."
                                   " The float number is the proportion of the data that is held out for testing."))
 

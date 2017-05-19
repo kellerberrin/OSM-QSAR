@@ -102,8 +102,8 @@ class OSMSKLearnClassifier(with_metaclass(ModelMetaClass, OSMClassification)):
 
         func = lambda x: classifier_probability(x, self.model.predict_proba)
 
-        OSMSimilarityMap(self, self.data.testing(), func).maps(self.args.testDirectory)
         if self.args.extendFlag:
+            OSMSimilarityMap(self, self.data.testing(), func).maps(self.args.testDirectory)
             OSMSimilarityMap(self, self.data.training(), func).maps(self.args.trainDirectory)
 
 

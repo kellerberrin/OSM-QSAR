@@ -85,6 +85,7 @@ class OSMModelData(object):
 
         self.log = log
         self.args = args
+        self.model_is_classifier = model.model_is_classifier()
         self.model_args = model.model_arguments()
         self.model_df = copy.deepcopy(data.get_data())    # The data object is used elsewhere, leave it unmolested.
         self.dragon_headers = data.get_dragon_headers()
@@ -186,13 +187,16 @@ class OSMModelData(object):
 
         arg_shape =arg["SHAPE"]
 
-        if arg_shape is None: return    # No shape checking
+        if arg_shape is None:
+            return  # No shape checking
 
-        if len(arg_shape) == 0: return # no shape checking
+        if len(arg_shape) == 0:
+            return  # no shape checking
 
         if len(arg_shape) == 1:  # Check if a scalar
 
-            if arg_shape[0] == None: return # no shape checking.
+            if arg_shape[0] is None:
+                return  # no shape checking.
 
             if not isinstance(self.model_df[arg["VARIABLE"]][0], np.ndarray):
 
@@ -202,7 +206,9 @@ class OSMModelData(object):
                                    , OSMModelData.enumerate_classes(self.model_df[arg["VARIABLE"]])
                                    , arg_shape[0])
                     sys.exit()
-                else: return #OK
+
+                else:
+                    return  # OK
 
             else:
                 self.log.error("Variable %s is a Numpy array. Arrays of classes not yet implemented.", arg["VARIABLE"])
@@ -265,32 +271,49 @@ class OSMModelData(object):
             sys.exit()
         return train, test
 
-    def crossval_train_test(self, test_proportion):
-        self.log.info("Shuffling Cross Valiation - Test Proportion %f", test_proportion)
+    def stratified_crossval(self, test_proportion):
 
-        self.test = self.model_df.sample(frac=test_proportion, replace=False)
+        if test_proportion < 0:
+            test_proportion = 0.0
 
-        test_set = set(self.test.index.values)
+        self.log.info("Stratified Cross Validation - Test Proportion %f", test_proportion)
+
+        if not self.model_is_classifier:
+            self.log.warning("Stratified Cross Validation specified - SCV can only be used with classifier models")
+            self.log.warning("Stratified Cross Validation specification ignored")
+            return
+
+        dependent_classes = self.model_df[self.model_args["DEPENDENT"]["VARIABLE"]].values
+        classes = OSMModelData.enumerate_classes(dependent_classes)
+
+        test_index_set = set()
+
+        for klass in classes:
+            class_df = self.model_df.loc[self.model_df[self.model_args["DEPENDENT"]["VARIABLE"]] == klass]
+            test_class_count = int(class_df.shape[0] * test_proportion)
+            if test_class_count < 1:
+                test_class_count = 1
+            test_class_set = set(class_df.sample(n=test_class_count).index.values)
+            test_index_set = test_index_set.union(test_class_set)
+
+
+        self.test = self.model_df.loc[list(test_index_set), :]
         data_set = set(self.model_df.index.values)
-
-        self.train = self.model_df.loc[list(data_set-test_set),:]
+        self.train = self.model_df.loc[list(data_set-test_index_set), :]
 
         train_set = set(self.train.index.values)
 
-        if data_set != test_set.union(train_set):
-            print("data_set", data_set)
-            print("train_set", train_set)
-            print("test_set", test_set)
-            self.log.error("Problem cross_validating the training and test set")
+        if data_set != test_index_set.union(train_set):
+            self.log.error("Problem with Stratified Cross Validation of the training and test set")
             sys.exit()
 
-        self.log.info("Training on %d molecules", self.train.shape[0])
-        self.log.info("Testing (fitting) on %d molecules", self.test.shape[0])
+        self.log.info("SCV Training on %d molecules", self.train.shape[0])
+        self.log.info("SCV Testing (fitting) on %d molecules", self.test.shape[0])
 
-        if self.train.shape[0] == 0 or self.test.shape[0] == 0:
-            self.log.error("Cross Valiation - Zero records for training and/or testing")
-            sys.exit()
-
+        if self.args.train != 0:  # Only check if training.
+            if self.train.shape[0] == 0 or self.test.shape[0] == 0:
+                self.log.error("Stratified Cross Validation - Zero records for training and/or testing")
+                sys.exit()
 
 
 class AccessData(object): # The adapter class actually used to return data to the model.
@@ -305,7 +328,7 @@ class AccessData(object): # The adapter class actually used to return data to th
         return self.data[var].tolist()
 
     def target_data(self):
-        return self.data[self.model_args["DEPENDENT"]["VARIABLE"]].values # return as a numpy array
+        return self.data[self.model_args["DEPENDENT"]["VARIABLE"]].values  # return as a numpy array
 
     def input_data(self):
         if len(self.model_args["INDEPENDENT"]) == 1:

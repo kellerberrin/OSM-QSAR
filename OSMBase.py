@@ -118,6 +118,8 @@ class OSMBaseModel(object):
 
         self.raw_data = data    #The entire dataset for recursive models.
         self.data = OSMModelData(self.args, self.log, self, data) # create a "model-centric" view of the data.
+        if self.args.shuffle >= 0:
+            self.data.stratified_crossval(self.args.shuffle)  # shuffle the test and training data if flag set.
         self.model = self.create_model()
 
         self.log.info("Begin Training %s Model", self.model_name())

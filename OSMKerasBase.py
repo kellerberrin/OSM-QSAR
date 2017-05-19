@@ -143,7 +143,7 @@ class KerasClassifier(OSMClassification):
 
         func = lambda x: keras_probability(x, self.model.predict_proba)
 
-        if self.args.checkPoint < 0 or self.args.extendFlag:
+        if self.args.checkPoint < 0 and self.args.extendFlag:
             OSMSimilarityMap(self, self.data.testing(), func).maps(self.args.testDirectory)
             if self.args.extendFlag:
                 OSMSimilarityMap(self, self.data.training(), func).maps(self.args.trainDirectory)
@@ -192,10 +192,10 @@ class KlassSequential(with_metaclass(ModelMetaClass, KerasClassifier)):
         # shuffle the hold out validation data each epoch.
 #        X, y = shuffle(self.data.training().input_data(), self.data.training().target_data())
 
-        # If the cross-validation flag is set then permute the training and test set.
+        # If the cross-validation flag is set then permute the training and test set for every checkpoint.
 
-        if self.args.crossVal > 0:
-            self.data.crossval_train_test(self.args.crossVal)
+        if self.args.crossVal >= 0:
+            self.data.stratified_crossval(self.args.crossVal)
 
         classes = self.model_enumerate_classes()
         class_list = self.data.training().target_data()

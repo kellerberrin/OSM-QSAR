@@ -39,10 +39,12 @@ from rdkit.Chem import AllChem
 
 __deepchem_imported__ = True
 
+from deepchem.feat import Featurizer, CoulombMatrix, CoulombMatrixEig, ConvMolFeaturizer
+from deepchem.feat.mol_graphs import ConvMol
+
 try:
 
     import deepchem as dc
-    from deepchem.feat import Featurizer, CoulombMatrix, CoulombMatrixEig
 
 except ImportError:
 
@@ -74,6 +76,8 @@ class OSMGenerateData(object):
 
         if self.args.coulombFlag:
             self.generate_coulomb_matrices()
+
+        self.generate_conv_mol()
 
         self.generate_fields()
 
@@ -189,6 +193,26 @@ class OSMGenerateData(object):
         missing_list = list(set(before_ids) - set(after_ids))
         for missing in missing_list:
             self.log.warning("Dropped molecule ID: %s after join with Coulomb Matrix data", missing)
+
+
+    def generate_conv_mol(self):
+
+        self.log.info("Generating Molecular Convolutions, may take a few moments ...")
+
+        mol_list = []
+
+        for index, row in self.data.iterrows():
+            mol = Chem.MolFromSmiles(row["SMILE"])
+            Chem.AddHs(mol)
+#            AllChem.UFFOptimizeMolecule(mol, confId=id)
+            mol_list.append(mol)
+
+        conv_array = ConvMolFeaturizer().featurize(mol_list)
+        print("len(conv_array)",len(conv_array),
+              "type(conv_array)", type(conv_array),
+              "type(conv_array[0]", type(conv_array[0]),
+              "get_atom_features", conv_array[0].get_atom_features().shape,)
+
 
     def generate_potency_class(self, nMol):
 

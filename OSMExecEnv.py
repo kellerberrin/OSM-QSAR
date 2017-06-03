@@ -41,6 +41,7 @@ import OSMTemplate
 import OSMSKLearnRegress
 import OSMSKLearnClassify
 import OSMTensorFlow
+import OSMBinding
 
 __version__ = "0.3"
 
